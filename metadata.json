@@ -1,0 +1,8 @@
+{
+  "name": "JLVP Marketing - Aprovação de conteúdo",
+  "description": "Sistema de aprovação de conteúdo ",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

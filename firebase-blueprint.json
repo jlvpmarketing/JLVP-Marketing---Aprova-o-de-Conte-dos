@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "brandColor": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "contactName": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "contactWhatsapp": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Project": {
+      "title": "Project",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "clientAccessKey": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "clientId", "name", "clientAccessKey"]
+    },
+    "Post": {
+      "title": "Post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "caption": { "type": "string" },
+        "mediaType": { "type": "string" },
+        "mediaUrls": { "type": "array", "items": { "type": "string" } },
+        "driveVideoUrl": { "type": "string" },
+        "contentType": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "scheduledTime": { "type": "string" },
+        "status": { "type": "string" },
+        "comments": { "type": "array" },
+        "changeNotes": { "type": "string" },
+        "platforms": { "type": "array" },
+        "createdByUserId": { "type": "string" },
+        "createdByUserName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "projectId", "clientId", "title", "status", "scheduledDate", "scheduledTime"]
+    },
+    "AgencyUser": {
+      "title": "AgencyUser",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "AuditLogItem": {
+      "title": "AuditLogItem",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "actionType": { "type": "string" },
+        "description": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "userId", "userName", "actionType", "description"]
+    },
+    "AgencyConfig": {
+      "title": "AgencyConfig",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "primaryColor": { "type": "string" },
+        "secondaryColor": { "type": "string" },
+        "notifyWhatsApp": { "type": "boolean" },
+        "notifyPush": { "type": "boolean" }
+      },
+      "required": ["name", "primaryColor"]
+    }
+  },
+  "firestore": {
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Registered agency clients"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Client project folders and access keys"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Scheduled publications and approval workflow data"
+    },
+    "/agency_users/{userId}": {
+      "schema": "AgencyUser",
+      "description": "Agency team members with role-based access"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLogItem",
+      "description": "Audit trail of actions performed across the system"
+    },
+    "/agency_config/{configId}": {
+      "schema": "AgencyConfig",
+      "description": "Global agency branding, theme colors, and notifications"
+    }
+  }
+}

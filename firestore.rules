@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper to validate string bounds
+    function isValidString(str, min, max) {
+      return str is string && str.size() >= min && str.size() <= max;
+    }
+
+    // Clients collection
+    match /clients/{clientId} {
+      allow read, write: if true;
+    }
+
+    // Projects collection
+    match /projects/{projectId} {
+      allow read, write: if true;
+    }
+
+    // Posts collection
+    match /posts/{postId} {
+      allow read, write: if true;
+    }
+
+    // Agency Users collection
+    match /agency_users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Audit logs
+    match /audit_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Agency configuration & branding
+    match /agency_config/{configId} {
+      allow read, write: if true;
+    }
+
+    // Notifications collection
+    match /notifications/{notifId} {
+      allow read, write: if true;
+    }
+  }
+}
