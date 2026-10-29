@@ -123,7 +123,7 @@ export const firestoreSync = {
       return [];
     }
   },
-
+};
 export function sanitizeForFirestore<T>(data: T): any {
   if (data === null || data === undefined) {
     return null;
