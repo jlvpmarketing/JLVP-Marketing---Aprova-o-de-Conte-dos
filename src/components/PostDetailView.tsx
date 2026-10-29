@@ -3,7 +3,6 @@ import { useApp } from '../context/AppContext';
 import { PostContent, AgencyUser } from '../types';
 import { getDriveEmbedUrl } from '../utils/drivePlayer';
 import { getContentTypeInfo, isVideoUrl } from '../utils/contentTypeHelper';
-import { buildWhatsAppUrl, createApprovedWhatsAppMessage } from '../utils/whatsapp';
 import { 
   X, 
   CheckCircle2, 
@@ -81,33 +80,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
   const handleApprove = () => {
     setApproving(true);
     approvePost(post.id, client?.name || 'Cliente');
-
-    // Find all assigned managers for this client
-    const assignedManagers = users.filter((m: AgencyUser) => 
-      Boolean(m.phone) && (
-        (client?.assignedManagerIds && client.assignedManagerIds.includes(m.id)) ||
-        (client?.assignedManagerName && m.name === client.assignedManagerName)
-      )
-    );
-
-    const targetList: { phone: string; name: string }[] = assignedManagers.length > 0
-      ? assignedManagers.map((m: AgencyUser) => ({ phone: m.phone!, name: m.name }))
-      : agencyConfig.accountManagerPhone
-      ? [{ phone: agencyConfig.accountManagerPhone, name: agencyConfig.accountManagerName }]
-      : [];
-
-    targetList.forEach((target: { phone: string; name: string }) => {
-      const waMsg = createApprovedWhatsAppMessage({
-        managerName: target.name,
-        clientName: client?.name || 'Cliente',
-        projectName: project?.name || 'Projeto',
-        postTitle: post.title,
-        agencyName: agencyConfig.agencyName,
-      });
-      window.open(buildWhatsAppUrl(target.phone, waMsg), '_blank');
-    });
-
-    addToast('success', 'Post Aprovado com Sucesso!', 'Os responsáveis da conta foram notificados via WhatsApp.');
+    addToast('success', 'Post Aprovado com Sucesso!', 'O status foi atualizado para Aprovado.');
     onClose();
   };
 
@@ -450,18 +423,6 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
             <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
               {role === 'agency' ? (
                 <>
-                  {client?.phone && (
-                    <a
-                      href={buildWhatsAppUrl(client.phone, `Olá ${client.name}! Equipe ${agencyConfig.agencyName} falando sobre o post "${post.title}".`)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs"
-                    >
-                      <Send className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>WhatsApp do Cliente</span>
-                    </a>
-                  )}
-
                   {onEditPost && (
                     <button
                       type="button"

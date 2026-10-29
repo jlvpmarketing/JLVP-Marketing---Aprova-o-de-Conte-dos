@@ -110,10 +110,11 @@ export interface Client {
   id: string;
   name: string;
   company: string;
-  email: string;
-  phone: string; // WhatsApp
+  email?: string;
+  phone?: string; // WhatsApp
+  whatsappGroupLink?: string; // Link do grupo do WhatsApp
   logo: string;
-  brandColor: string;
+  brandColor?: string;
   niche: string;
   notes?: string;
   createdAt: string;

@@ -21,6 +21,27 @@ testFirestoreConnection().then(connected => {
   console.warn('Modo offline do Firestore ativado:', err);
 });
 
+export function sanitizeForFirestore<T>(data: T): any {
+  if (data === null || data === undefined) {
+    return null;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter(item => item !== undefined)
+      .map(item => sanitizeForFirestore(item));
+  }
+  if (typeof data === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data as Record<string, any>)) {
+      if (value !== undefined) {
+        cleaned[key] = sanitizeForFirestore(value);
+      }
+    }
+    return cleaned;
+  }
+  return data;
+}
+
 export const firestoreSync = {
   isConnected: () => isFirestoreConnected,
 
@@ -103,12 +124,35 @@ export const firestoreSync = {
     }
   },
 
+export function sanitizeForFirestore<T>(data: T): any {
+  if (data === null || data === undefined) {
+    return null;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter(item => item !== undefined)
+      .map(item => sanitizeForFirestore(item));
+  }
+  if (typeof data === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data as Record<string, any>)) {
+      if (value !== undefined) {
+        cleaned[key] = sanitizeForFirestore(value);
+      }
+    }
+    return cleaned;
+  }
+  return data;
+}
+
   // Save/Update Post
   async savePost(post: PostContent) {
     try {
-      await setDoc(doc(db, 'posts', post.id), post, { merge: true });
+      const cleanData = sanitizeForFirestore(post);
+      await setDoc(doc(db, 'posts', post.id), cleanData, { merge: true });
+      console.log('✅ Post gravado no Firestore:', post.id);
     } catch (err) {
-      console.warn('Erro ao sincronizar post no Firestore:', err);
+      console.error('❌ Erro ao salvar post no Firestore:', err);
     }
   },
 
@@ -116,6 +160,7 @@ export const firestoreSync = {
   async deletePost(postId: string) {
     try {
       await deleteDoc(doc(db, 'posts', postId));
+      console.log('🗑️ Post removido do Firestore:', postId);
     } catch (err) {
       console.warn('Erro ao remover post do Firestore:', err);
     }
@@ -124,9 +169,11 @@ export const firestoreSync = {
   // Save/Update Client
   async saveClient(client: Client) {
     try {
-      await setDoc(doc(db, 'clients', client.id), client, { merge: true });
+      const cleanData = sanitizeForFirestore(client);
+      await setDoc(doc(db, 'clients', client.id), cleanData, { merge: true });
+      console.log('✅ Cliente gravado no Firestore:', client.id);
     } catch (err) {
-      console.warn('Erro ao sincronizar cliente no Firestore:', err);
+      console.error('❌ Erro ao salvar cliente no Firestore:', err);
     }
   },
 
@@ -134,6 +181,7 @@ export const firestoreSync = {
   async deleteClient(clientId: string) {
     try {
       await deleteDoc(doc(db, 'clients', clientId));
+      console.log('🗑️ Cliente removido do Firestore:', clientId);
     } catch (err) {
       console.warn('Erro ao remover cliente do Firestore:', err);
     }
@@ -142,9 +190,11 @@ export const firestoreSync = {
   // Save/Update Project
   async saveProject(project: FolderProject) {
     try {
-      await setDoc(doc(db, 'projects', project.id), project, { merge: true });
+      const cleanData = sanitizeForFirestore(project);
+      await setDoc(doc(db, 'projects', project.id), cleanData, { merge: true });
+      console.log('✅ Projeto gravado no Firestore:', project.id);
     } catch (err) {
-      console.warn('Erro ao sincronizar projeto no Firestore:', err);
+      console.error('❌ Erro ao salvar projeto no Firestore:', err);
     }
   },
 
@@ -152,6 +202,7 @@ export const firestoreSync = {
   async deleteProject(projectId: string) {
     try {
       await deleteDoc(doc(db, 'projects', projectId));
+      console.log('🗑️ Projeto removido do Firestore:', projectId);
     } catch (err) {
       console.warn('Erro ao remover projeto do Firestore:', err);
     }
@@ -160,9 +211,11 @@ export const firestoreSync = {
   // Save/Update User
   async saveUser(user: AgencyUser) {
     try {
-      await setDoc(doc(db, 'agency_users', user.id), user, { merge: true });
+      const cleanData = sanitizeForFirestore(user);
+      await setDoc(doc(db, 'agency_users', user.id), cleanData, { merge: true });
+      console.log('✅ Usuário gravado no Firestore:', user.id);
     } catch (err) {
-      console.warn('Erro ao sincronizar usuário no Firestore:', err);
+      console.error('❌ Erro ao salvar usuário no Firestore:', err);
     }
   },
 
@@ -187,7 +240,8 @@ export const firestoreSync = {
   // Save Agency Config
   async saveAgencyConfig(config: AgencyConfig) {
     try {
-      await setDoc(doc(db, 'agency_config', 'main'), config, { merge: true });
+      const cleanData = sanitizeForFirestore(config);
+      await setDoc(doc(db, 'agency_config', 'main'), cleanData, { merge: true });
     } catch (err) {
       console.warn('Erro ao salvar configurações da agência no Firestore:', err);
     }
@@ -196,7 +250,8 @@ export const firestoreSync = {
   // Save Notification
   async saveNotification(notif: NotificationItem) {
     try {
-      await setDoc(doc(db, 'notifications', notif.id), notif, { merge: true });
+      const cleanData = sanitizeForFirestore(notif);
+      await setDoc(doc(db, 'notifications', notif.id), cleanData, { merge: true });
     } catch (err) {
       console.warn('Erro ao salvar notificação no Firestore:', err);
     }

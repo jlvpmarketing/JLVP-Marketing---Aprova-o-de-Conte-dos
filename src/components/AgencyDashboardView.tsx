@@ -33,7 +33,6 @@ import {
   Trash2,
   Share2
 } from 'lucide-react';
-import { buildWhatsAppUrl, createNewContentWhatsAppMessage } from '../utils/whatsapp';
 
 interface AgencyDashboardViewProps {
   currentTab: string;
@@ -101,28 +100,6 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
     setCopiedKey(projectKey);
     addToast('success', 'Link Único Copiado!', 'Link direto de aprovação para o cliente.');
     setTimeout(() => setCopiedKey(null), 2500);
-  };
-
-  const handleSendWhatsAppNotification = (post: PostContent) => {
-    if (!selectedClient?.phone || !activeProject) return;
-    const approvalLink = `${window.location.origin}/?view=portal&project=${activeProject.clientAccessKey}`;
-    const dateFormatted = new Date(post.scheduledDate).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    const msg = createNewContentWhatsAppMessage({
-      clientName: selectedClient.name,
-      projectName: activeProject.name,
-      postTitle: post.title,
-      approvalLink,
-      agencyName: agencyConfig.agencyName,
-      scheduledDateFormatted: dateFormatted,
-    });
-
-    window.open(buildWhatsAppUrl(selectedClient.phone, msg), '_blank');
   };
 
   return (
@@ -198,18 +175,12 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
 
                     {/* Stats & Contacts */}
                     <div className="space-y-2 py-3 border-y border-slate-100 text-xs">
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>WhatsApp:</span>
-                        <a
-                          href={buildWhatsAppUrl(client.phone, `Olá ${client.name}!`)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-emerald-600 hover:underline flex items-center gap-1"
-                        >
-                          <Phone className="w-3 h-3" />
-                          {client.phone}
-                        </a>
-                      </div>
+                      {client.whatsappGroupLink && (
+                        <div className="flex items-center justify-between text-slate-600">
+                          <span>Grupo WhatsApp:</span>
+                          <span className="font-semibold text-emerald-700">Configurado</span>
+                        </div>
+                      )}
                       {client.email && (
                         <div className="flex items-center justify-between text-slate-600 truncate">
                           <span>E-mail:</span>
@@ -373,21 +344,7 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
                   <span>{copiedKey === activeProject.clientAccessKey ? 'Link Copiado!' : 'Copiar Link do Cliente'}</span>
                 </button>
 
-                {selectedClient?.phone && (
-                  <a
-                    href={buildWhatsAppUrl(
-                      selectedClient.phone,
-                      `Olá ${selectedClient.name}!\nAqui está o link exclusivo para aprovação dos conteúdos do projeto *${activeProject.name}*:\n${window.location.origin}/?view=portal&project=${activeProject.clientAccessKey}`
-                    )}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3.5 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors flex items-center gap-1.5"
-                    title="Enviar link via WhatsApp"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>WhatsApp</span>
-                  </a>
-                )}
+
 
                 <button
                   onClick={() => openClientPortalByProject(activeProject.clientAccessKey)}
@@ -512,20 +469,6 @@ export const AgencyDashboardView: React.FC<AgencyDashboardViewProps> = ({
                       setContentModalOpen(true);
                     }}
                   />
-
-                  {/* WhatsApp Quick Notification Trigger from Agency to Client */}
-                  {selectedClient?.phone && (
-                    <div className="mt-1 flex items-center justify-end">
-                      <button
-                        onClick={() => handleSendWhatsAppNotification(post)}
-                        className="text-[11px] text-emerald-700 hover:text-emerald-800 font-medium flex items-center gap-1 py-1 px-2 rounded-md hover:bg-emerald-50 transition-colors"
-                        title="Enviar aviso de aprovação no WhatsApp do cliente"
-                      >
-                        <Send className="w-3 h-3" />
-                        <span>Avisar no WhatsApp</span>
-                      </button>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>

@@ -24,7 +24,6 @@ import {
 import { playNotificationSound, sendBrowserPushNotification } from '../utils/notifications';
 import { applyThemeToDocument } from '../utils/themeHelper';
 import { firestoreSync } from '../services/firestoreSync';
-import { buildWhatsAppUrl } from '../utils/whatsapp';
 
 interface ToastMessage {
   id: string;
@@ -900,6 +899,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updatePost = (id: string, updates: Partial<PostContent>) => {
+    const prevPost = posts.find(p => p.id === id);
     setPosts(prev => prev.map(p => {
       if (p.id === id) {
         const updated = { ...p, ...updates };
@@ -908,6 +908,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       return p;
     }));
+
+    if (prevPost && prevPost.status === 'changes_requested' && (updates.status === 'pending_approval' || (updates.mediaUrls && updates.mediaUrls !== prevPost.mediaUrls))) {
+      addNotification({
+        recipient: 'client',
+        title: 'Ajuste Realizado no Post',
+        message: `As alterações em "${prevPost.title}" foram concluídas pela agência e o post está pronto para nova revisão.`,
+        type: 'new_content',
+        postId: prevPost.id,
+        clientId: prevPost.clientId,
+        authorName: currentUser?.name || 'Agência',
+        authorRole: 'Agência',
+      });
+    }
+
     addAuditLog('post_edited', `Editou o post "${updates.title || id}".`, id, updates.title);
     addToast('info', 'Conteúdo Atualizado', 'As alterações do post foram salvas.');
   };
@@ -967,22 +981,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       authorRole: authorRole,
     });
 
-    // Automatically dispatch WhatsApp notification to assigned managers
-    const waTargets = assignedManagers.filter(m => Boolean(m.phone));
-    try {
-      if (waTargets.length > 0) {
-        waTargets.forEach(target => {
-          const waMsg = `*AprovaFlow - Atualização de Conteúdo*\n\n✅ *Post Aprovado!*\nCliente: *${client?.company || approver}*\nPost: *${post.title}*\nAprovado por: *${approver}* (${authorRole})\nStatus: *Pronto para publicação!*`;
-          window.open(buildWhatsAppUrl(target.phone!, waMsg), '_blank');
-        });
-      } else if (agencyConfig.accountManagerPhone) {
-        const waMsg = `*AprovaFlow - Atualização de Conteúdo*\n\n✅ *Post Aprovado!*\nCliente: *${client?.company || approver}*\nPost: *${post.title}*\nAprovado por: *${approver}* (${authorRole})\nStatus: *Pronto para publicação!*`;
-        window.open(buildWhatsAppUrl(agencyConfig.accountManagerPhone, waMsg), '_blank');
-      }
-    } catch {
-      // Ignore if popup blocked
-    }
-
     addAuditLog('post_approved', `Aprovou o post "${post.title}".`, post.id, post.title);
   };
 
@@ -1035,22 +1033,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       authorRole: authorRole,
     });
 
-    // Automatically dispatch WhatsApp notification to assigned managers
-    const waTargets = assignedManagers.filter(m => Boolean(m.phone));
-    try {
-      if (waTargets.length > 0) {
-        waTargets.forEach(target => {
-          const waMsg = `*AprovaFlow - Atualização de Conteúdo*\n\n⚠️ *Ajustes Solicitados!*\nCliente: *${client?.company || authorName}*\nPost: *${post.title}*\nSolicitado por: *${authorName}* (${authorRole})\n\n📝 *Ajustes solicitados:*\n"${note}"`;
-          window.open(buildWhatsAppUrl(target.phone!, waMsg), '_blank');
-        });
-      } else if (agencyConfig.accountManagerPhone) {
-        const waMsg = `*AprovaFlow - Atualização de Conteúdo*\n\n⚠️ *Ajustes Solicitados!*\nCliente: *${client?.company || authorName}*\nPost: *${post.title}*\nSolicitado por: *${authorName}* (${authorRole})\n\n📝 *Ajustes solicitados:*\n"${note}"`;
-        window.open(buildWhatsAppUrl(agencyConfig.accountManagerPhone, waMsg), '_blank');
-      }
-    } catch {
-      // Ignore if popup blocked
-    }
-
     addAuditLog('post_changes_requested', `Solicitou alterações em "${post.title}": "${note.slice(0, 80)}"`, post.id, post.title);
   };
 
@@ -1089,9 +1071,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ? (assignedManagers[0]?.phone || agencyConfig.accountManagerPhone)
       : client?.phone;
 
+    const isAgencyAuthor = authorRole === 'agency';
+    const notifTitle = isAgencyAuthor 
+      ? `Ajuste respondido por ${finalAuthorName}` 
+      : `Novo comentário de ${finalAuthorName}`;
+
     addNotification({
       recipient,
-      title: `Novo comentário de ${finalAuthorName}`,
+      title: notifTitle,
       message: `Em "${post?.title || 'Conteúdo'}": ${text.slice(0, 60)}...`,
       type: 'comment',
       targetPhone,

@@ -21,7 +21,6 @@ import {
   Sparkles,
   ExternalLink
 } from 'lucide-react';
-import { buildWhatsAppUrl } from '../utils/whatsapp';
 
 const ROLE_DEFINITIONS: Record<UserRole, { label: string; badge: string; desc: string; icon: string }> = {
   owner: {
@@ -563,20 +562,6 @@ export const TeamManagementModal: React.FC = () => {
                       <span className="hidden md:inline">E-mail</span>
                     </button>
 
-                    {/* WhatsApp link if user has phone */}
-                    {u.phone && (
-                      <a
-                        href={buildWhatsAppUrl(u.phone, `Olá ${u.name}! Paloma Garcia falando pela ${agencyConfig.agencyName}. Seu acesso ao sistema está disponível em: ${window.location.origin}\nLogin: ${u.email}\nSenha: ${u.password || '123456'}`)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 rounded-xl border border-emerald-200 hover:border-emerald-500 bg-emerald-50 text-[11px] font-semibold text-emerald-800 transition-all flex items-center gap-1 cursor-pointer"
-                        title="Enviar credenciais via WhatsApp"
-                      >
-                        <Send className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="hidden md:inline">WhatsApp</span>
-                      </a>
-                    )}
-
                     {/* Copy Credentials Button */}
                     <button
                       type="button"
@@ -661,19 +646,6 @@ export const TeamManagementModal: React.FC = () => {
                   <Mail className="w-4 h-4 text-rose-400" />
                   <span>Enviar pelo Gmail Web ({currentUser?.email || 'jlvpmarketing@gmail.com'})</span>
                 </button>
-
-                {welcomeModalUser.phone && (
-                  <a
-                    href={buildWhatsAppUrl(welcomeModalUser.phone, `Olá ${welcomeModalUser.name}!\nVocê foi cadastrado na ${agencyConfig.agencyName}.\n\n🔗 Link: ${window.location.origin}\n📧 E-mail: ${welcomeModalUser.email}\n🔑 Senha: ${welcomeModalUser.password || '123456'}`)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setWelcomeModalUser(null)}
-                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span>Enviar Credenciais pelo WhatsApp</span>
-                  </a>
-                )}
 
                 <button
                   type="button"

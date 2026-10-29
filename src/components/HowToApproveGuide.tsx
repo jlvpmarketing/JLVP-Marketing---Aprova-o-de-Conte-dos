@@ -8,11 +8,9 @@ import {
   Calendar, 
   ShieldCheck, 
   Sparkles, 
-  ArrowRight,
-  Phone
+  ArrowRight
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { buildWhatsAppUrl } from '../utils/whatsapp';
 
 export const HowToApproveGuide: React.FC = () => {
   const { agencyConfig } = useApp();
@@ -97,29 +95,15 @@ export const HowToApproveGuide: React.FC = () => {
         })}
 
         {/* Support Card */}
-        <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-start gap-4">
-          <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-300">
-            <Phone className="w-5 h-5" />
+        <div className="p-5 rounded-2xl bg-zinc-900 border border-zinc-800 text-white flex items-start gap-4">
+          <div className="w-11 h-11 rounded-xl bg-white/10 text-amber-400 flex items-center justify-center shrink-0 border border-white/15">
+            <ShieldCheck className="w-5 h-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-emerald-950 text-sm mb-1">Dúvidas Urgentes?</h3>
-            <p className="text-xs text-emerald-800 leading-relaxed mb-3">
-              Fale diretamente com seu gerente de contas da agência no WhatsApp.
+            <h3 className="font-semibold text-white text-sm mb-1">Dúvidas ou Alinhamentos?</h3>
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              Utilize o botão de <strong>Chat</strong> em cada publicação para registrar observações ou tirar dúvidas diretamente com os criadores de conteúdo da {agencyConfig.agencyName}.
             </p>
-            {agencyConfig.accountManagerPhone && (
-              <a
-                href={buildWhatsAppUrl(
-                  agencyConfig.accountManagerPhone,
-                  `Olá ${agencyConfig.accountManagerName}, estou revisando os conteúdos no portal e tenho uma dúvida rápida.`
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-2xs"
-              >
-                <span>Chamar no WhatsApp</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </a>
-            )}
           </div>
         </div>
       </div>

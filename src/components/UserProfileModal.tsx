@@ -89,7 +89,7 @@ export const UserProfileModal: React.FC = () => {
     if (nameInput.trim() && nameInput.trim() !== currentUser.name) {
       updates.name = nameInput.trim();
     }
-    if (passwordInput.trim()) {
+    if (isOwner && passwordInput.trim()) {
       updates.password = passwordInput.trim();
     }
     if (Object.keys(updates).length > 0) {
@@ -204,7 +204,7 @@ export const UserProfileModal: React.FC = () => {
                   }}
                   className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
                 >
-                  {isEditingDetails ? 'Cancelar Edição' : 'Editar Nome & Senha'}
+                  {isEditingDetails ? 'Cancelar Edição' : (isOwner ? 'Editar Nome & Senha' : 'Editar Nome')}
                 </button>
               </div>
             </div>
@@ -288,9 +288,9 @@ export const UserProfileModal: React.FC = () => {
         {isEditingDetails && (
           <form onSubmit={handleSaveDetails} className="bg-slate-50 p-5 border-b border-slate-200 animate-in slide-in-from-top-4 duration-200">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-              Editar Dados Pessoais
+              {isOwner ? 'Editar Dados Pessoais & Senha' : 'Editar Nome de Exibição'}
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className={`grid grid-cols-1 ${isOwner ? 'sm:grid-cols-2' : ''} gap-3`}>
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">Nome Completo</label>
                 <input
@@ -301,16 +301,23 @@ export const UserProfileModal: React.FC = () => {
                   required
                 />
               </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Nova Senha (opcional)</label>
-                <input
-                  type="password"
-                  placeholder="Deixe em branco para manter"
-                  value={passwordInput}
-                  onChange={e => setPasswordInput(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-brand"
-                />
-              </div>
+              {isOwner ? (
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Nova Senha (opcional)</label>
+                  <input
+                    type="password"
+                    placeholder="Deixe em branco para manter"
+                    value={passwordInput}
+                    onChange={e => setPasswordInput(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-brand"
+                  />
+                </div>
+              ) : (
+                <div className="p-3 bg-zinc-100 rounded-xl border border-zinc-200 text-[11px] text-zinc-600 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-zinc-500 shrink-0" />
+                  <span>A alteração de senhas é gerenciada exclusivamente pela Dona da Agência (Paloma Garcia).</span>
+                </div>
+              )}
             </div>
             <div className="mt-3 flex justify-end gap-2">
               <button

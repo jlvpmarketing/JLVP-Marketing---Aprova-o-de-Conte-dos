@@ -25,35 +25,26 @@ export const ClientManagerModal: React.FC<ClientManagerModalProps> = ({ isOpen, 
   const { addClient, updateClient, deleteClient, users, agencyConfig, addToast } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [name, setName] = useState('');
   const [company, setCompany] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [whatsappGroupLink, setWhatsappGroupLink] = useState('');
   const [logo, setLogo] = useState('');
-  const [brandColor, setBrandColor] = useState('#4F46E5');
   const [niche, setNiche] = useState('');
   const [notes, setNotes] = useState('');
   const [assignedManagerIds, setAssignedManagerIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (clientToEdit) {
-      setName(clientToEdit.name || '');
-      setCompany(clientToEdit.company || '');
-      setEmail(clientToEdit.email || '');
-      setPhone(clientToEdit.phone || '');
+      setCompany(clientToEdit.company || clientToEdit.name || '');
+      setWhatsappGroupLink(clientToEdit.whatsappGroupLink || '');
       setLogo(clientToEdit.logo || '');
-      setBrandColor(clientToEdit.brandColor || '#4F46E5');
       setNiche(clientToEdit.niche || '');
       setNotes(clientToEdit.notes || '');
       const initialIds = clientToEdit.assignedManagerIds || (clientToEdit.assignedManagerId ? [clientToEdit.assignedManagerId] : []);
       setAssignedManagerIds(initialIds);
     } else {
-      setName('');
       setCompany('');
-      setEmail('');
-      setPhone('');
+      setWhatsappGroupLink('');
       setLogo('');
-      setBrandColor('#4F46E5');
       setNiche('');
       setNotes('');
       setAssignedManagerIds([]);
@@ -92,8 +83,8 @@ export const ClientManagerModal: React.FC<ClientManagerModalProps> = ({ isOpen, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !company.trim()) {
-      addToast('error', 'Campos obrigatórios', 'Preencha o nome da empresa e do contato.');
+    if (!company.trim()) {
+      addToast('error', 'Campo obrigatório', 'Preencha o nome da empresa/marca.');
       return;
     }
 
@@ -102,12 +93,10 @@ export const ClientManagerModal: React.FC<ClientManagerModalProps> = ({ isOpen, 
 
     if (clientToEdit) {
       updateClient(clientToEdit.id, {
-        name: name.trim(),
+        name: company.trim(),
         company: company.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
+        whatsappGroupLink: whatsappGroupLink.trim(),
         logo,
-        brandColor,
         niche: niche.trim(),
         notes: notes.trim(),
         assignedManagerIds,
@@ -118,12 +107,10 @@ export const ClientManagerModal: React.FC<ClientManagerModalProps> = ({ isOpen, 
       addToast('success', 'Cliente Atualizado', `Dados de ${company} foram salvos.`);
     } else {
       addClient({
-        name: name.trim(),
+        name: company.trim(),
         company: company.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
+        whatsappGroupLink: whatsappGroupLink.trim(),
         logo,
-        brandColor,
         niche: niche.trim(),
         notes: notes.trim(),
         assignedManagerIds,
@@ -172,14 +159,13 @@ export const ClientManagerModal: React.FC<ClientManagerModalProps> = ({ isOpen, 
             <div className="flex items-center gap-4">
               <div 
                 className="w-16 h-16 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0 shadow-xs relative"
-                style={{ borderColor: brandColor }}
               >
                 {logo ? (
                   <img src={logo} alt="Logo Cliente" className="w-full h-full object-cover" />
                 ) : (
                   <div 
                     className="w-full h-full flex items-center justify-center font-bold text-white text-lg"
-                    style={{ backgroundColor: brandColor }}
+                    style={{ backgroundColor: agencyConfig.primaryColor || '#000000' }}
                   >
                     {company ? company.charAt(0).toUpperCase() : 'C'}
                   </div>
@@ -218,7 +204,7 @@ export const ClientManagerModal: React.FC<ClientManagerModalProps> = ({ isOpen, 
             </div>
           </div>
 
-          {/* Nome da Empresa e Contato */}
+          {/* Empresa / Marca e Nicho */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Empresa / Marca *</label>
@@ -231,17 +217,37 @@ export const ClientManagerModal: React.FC<ClientManagerModalProps> = ({ isOpen, 
                 className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Nome do Contato no Cliente *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-slate-500" />
+                Nicho / Segmento
+              </label>
               <input
                 type="text"
-                required
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Ex: Marcos Silveira"
+                value={niche}
+                onChange={e => setNiche(e.target.value)}
+                placeholder="Ex: Cafeteria & Torrefação"
                 className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400"
               />
             </div>
+          </div>
+
+          {/* Link do Grupo de WhatsApp do Cliente */}
+          <div className="p-3 bg-emerald-50/60 border border-emerald-200/80 rounded-xl space-y-1">
+            <label className="block text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+              <span>Link do Grupo do WhatsApp deste Cliente</span>
+            </label>
+            <input
+              type="url"
+              value={whatsappGroupLink}
+              onChange={e => setWhatsappGroupLink(e.target.value)}
+              placeholder="Ex: https://chat.whatsapp.com/AbCdEfGhIjK12345"
+              className="w-full px-3 py-2 text-xs border border-emerald-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono text-slate-800"
+            />
+            <p className="text-[11px] text-emerald-800">
+              Cole o link de convite do grupo do WhatsApp. Na página do cliente, você poderá enviar o projeto diretamente para este grupo com 1 clique.
+            </p>
           </div>
 
           {/* Múltiplos Responsáveis Internos pela Conta (Agência) */}
@@ -249,14 +255,14 @@ export const ClientManagerModal: React.FC<ClientManagerModalProps> = ({ isOpen, 
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <UserCheck className="w-3.5 h-3.5 text-zinc-900" />
-                Responsáveis pela Conta na Agência (Pode escolher mais de um)
+                Responsáveis pela Conta na Agência (Equipe)
               </label>
               <span className="text-[11px] text-slate-500 font-mono">
                 {assignedManagerIds.length} selecionado(s)
               </span>
             </div>
             <p className="text-[11px] text-slate-500">
-              Todos os membros selecionados receberão mensagens automáticas no WhatsApp quando houver atualizações.
+              Membros da equipe interna da agência responsáveis pela gestão deste cliente.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1.5 bg-slate-50 border border-slate-200 rounded-xl">
@@ -286,77 +292,6 @@ export const ClientManagerModal: React.FC<ClientManagerModalProps> = ({ isOpen, 
                   </div>
                 );
               })}
-            </div>
-          </div>
-
-          {/* Contatos WhatsApp e Email */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center gap-1">
-                <Phone className="w-3 h-3 text-emerald-600" />
-                WhatsApp do Cliente (com DDD) *
-              </label>
-              <input
-                type="text"
-                required
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                placeholder="Ex: 11991234567"
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400 font-mono"
-              />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Usado para disparar links de aprovação.</span>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center gap-1">
-                <Mail className="w-3 h-3 text-slate-500" />
-                E-mail do Cliente
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="cliente@email.com.br"
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400"
-              />
-            </div>
-          </div>
-
-          {/* Nicho & Cor da Marca */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-slate-500" />
-                Nicho / Segmento
-              </label>
-              <input
-                type="text"
-                value={niche}
-                onChange={e => setNiche(e.target.value)}
-                placeholder="Ex: Cafeteria & Torrefação"
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-zinc-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center justify-between">
-                <span>Cor da Marca</span>
-                <span className="font-mono text-[11px] text-slate-400">{brandColor}</span>
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={brandColor}
-                  onChange={e => setBrandColor(e.target.value)}
-                  className="w-8 h-8 rounded-md border border-slate-300 cursor-pointer p-0.5"
-                />
-                <input
-                  type="text"
-                  value={brandColor}
-                  onChange={e => setBrandColor(e.target.value)}
-                  placeholder="#4F46E5"
-                  className="flex-1 px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:outline-none"
-                />
-              </div>
             </div>
           </div>
 

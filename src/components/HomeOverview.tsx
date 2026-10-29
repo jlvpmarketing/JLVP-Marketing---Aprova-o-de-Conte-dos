@@ -14,7 +14,6 @@ import {
   Clock, 
   ArrowRight, 
   Plus, 
-  Send, 
   FolderKanban, 
   CheckCheck, 
   Trash2, 
@@ -25,9 +24,10 @@ import {
   Edit2,
   Check,
   CheckSquare,
-  Square
+  Square,
+  ChevronDown
 } from 'lucide-react';
-import { buildWhatsAppUrl } from '../utils/whatsapp';
+import { NotificationsDrawer } from './NotificationsDrawer';
 
 interface HomeOverviewProps {
   onOpenNewClient: () => void;
@@ -62,6 +62,7 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
   // Modals & Publication Page
   const [selectedPostDetail, setSelectedPostDetail] = useState<PostContent | null>(null);
   const [editingPost, setEditingPost] = useState<PostContent | null>(null);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [filterNotifs, setFilterNotifs] = useState<'all' | 'unread'>('all');
   const [selectedNotifIds, setSelectedNotifIds] = useState<string[]>([]);
   
@@ -201,6 +202,20 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Bell Notifications Button */}
+            <button
+              onClick={() => setIsNotificationsOpen(true)}
+              className="relative p-2.5 text-white hover:text-amber-400 bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Notificações do Sistema"
+            >
+              <Bell className="w-4 h-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-black">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={onOpenNewClient}
               className="px-4 py-2 text-xs font-semibold text-slate-900 bg-white hover:bg-slate-100 rounded-xl transition-all shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer"
@@ -219,53 +234,37 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
           </div>
         </div>
 
-        {/* Month Selector Bar for Agency Dashboard */}
+        {/* Month Selector Dropdown for Agency Dashboard */}
         <div className="mt-6 pt-5 border-t border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs">
             <span className="text-amber-400 font-bold">Mês de Referência:</span>
             <span className="text-zinc-400 text-[11px]">Filtre as métricas e posts por mês</span>
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-            <button
-              type="button"
-              onClick={() => setSelectedMonthFilter('all')}
-              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                selectedMonthFilter === 'all'
-                  ? 'bg-white text-black shadow-sm'
-                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800'
-              }`}
+          <div className="relative min-w-[220px]">
+            <select
+              value={selectedMonthFilter}
+              onChange={e => setSelectedMonthFilter(e.target.value)}
+              className="w-full appearance-none bg-zinc-900 border border-zinc-700 hover:border-zinc-500 text-white text-xs font-bold py-2.5 pl-4 pr-10 rounded-xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all shadow-inner"
             >
-              Todos os Meses ({posts.length})
-            </button>
-
-            {availableMonths.map(monthStr => {
-              const [y, m] = monthStr.split('-');
-              const date = new Date(parseInt(y), parseInt(m) - 1, 1);
-              const label = date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
-              const count = posts.filter(p => p.scheduledDate.startsWith(monthStr)).length;
-              const isSelected = selectedMonthFilter === monthStr;
-
-              return (
-                <button
-                  key={monthStr}
-                  type="button"
-                  onClick={() => setSelectedMonthFilter(monthStr)}
-                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
-                    isSelected
-                      ? 'bg-amber-400 text-amber-950 font-extrabold shadow-sm'
-                      : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800'
-                  }`}
-                >
-                  <span className="capitalize">{label}</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                    isSelected ? 'bg-amber-950 text-white' : 'bg-zinc-800 text-zinc-200'
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+              <option value="all" className="bg-zinc-950 text-white">
+                Todos os Meses ({posts.length} posts)
+              </option>
+              {availableMonths.map(monthStr => {
+                const [y, m] = monthStr.split('-');
+                const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+                const label = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                const count = posts.filter(p => p.scheduledDate.startsWith(monthStr)).length;
+                return (
+                  <option key={monthStr} value={monthStr} className="bg-zinc-950 text-white">
+                    {label.charAt(0).toUpperCase() + label.slice(1)} ({count} posts)
+                  </option>
+                );
+              })}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-zinc-400">
+              <ChevronDown className="w-4 h-4 text-amber-400" />
+            </div>
           </div>
         </div>
 
@@ -604,18 +603,10 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
                       <FolderKanban className="w-3.5 h-3.5 text-slate-600" />
                       {clientProjects.length} pastas de projeto
                     </span>
-                    {client.phone && (
-                      <a
-                        href={buildWhatsAppUrl(client.phone, `Olá ${client.name}!`)}
-                        onClick={e => e.stopPropagation()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
-                        title="Chamar no WhatsApp"
-                      >
-                        <Send className="w-3 h-3" />
-                        WhatsApp
-                      </a>
+                    {client.whatsappGroupLink && (
+                      <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        Grupo Configurado
+                      </span>
                     )}
                   </div>
                 </div>
@@ -647,210 +638,7 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
         </div>
       </section>
 
-      {/* SECTION 2: TODAS AS NOTIFICAÇÕES COM SELEÇÃO E MARCAÇÃO INDIVIDUAL */}
-      <section className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div 
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-white"
-              style={{ backgroundColor: agencyConfig?.primaryColor || '#000000' }}
-            >
-              <Bell className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-900">Notificações de Todos os Clientes</h2>
-                {unreadCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white">
-                    {unreadCount} não lidas
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-500">
-                Histórico centralizado. Marque individualmente ou selecione várias para concluir.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Filter buttons */}
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs font-medium">
-              <button
-                onClick={() => setFilterNotifs('all')}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                  filterNotifs === 'all' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600'
-                }`}
-              >
-                Todas ({notifications.length})
-              </button>
-              <button
-                onClick={() => setFilterNotifs('unread')}
-                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                  filterNotifs === 'unread' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600'
-                }`}
-              >
-                Não Lidas ({unreadCount})
-              </button>
-            </div>
-
-            {/* Select All Checkbox Button */}
-            <button
-              onClick={handleSelectAllDisplayed}
-              className="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              {selectedNotifIds.length > 0 && selectedNotifIds.length === displayedNotifications.length ? (
-                <CheckSquare className="w-3.5 h-3.5 text-emerald-600" />
-              ) : (
-                <Square className="w-3.5 h-3.5 text-slate-400" />
-              )}
-              <span>Selecionar Todas</span>
-            </button>
-
-            {/* Batch Mark as Done Button */}
-            {selectedNotifIds.length > 0 && (
-              <button
-                onClick={handleMarkSelectedAsRead}
-                style={{ backgroundColor: agencyConfig?.primaryColor || '#000000' }}
-                className="px-3 py-1 text-xs font-bold text-white rounded-lg transition-opacity hover:opacity-90 flex items-center gap-1.5 cursor-pointer shadow-xs animate-in fade-in"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>Marcar ({selectedNotifIds.length}) Concluídas</span>
-              </button>
-            )}
-
-            {/* Mark All Done */}
-            <button
-              onClick={() => markNotificationsAsRead()}
-              className="p-1.5 text-slate-500 hover:text-black rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-              title="Marcar todas como concluídas"
-            >
-              <CheckCheck className="w-4 h-4" />
-            </button>
-            <button
-              onClick={clearNotifications}
-              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-              title="Limpar histórico"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Notifications feed */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto pr-1">
-          {displayedNotifications.length === 0 ? (
-            <div className="col-span-full py-8 text-center text-slate-400 text-xs">
-              Nenhuma notificação registrada no momento.
-            </div>
-          ) : (
-            displayedNotifications.map(notif => {
-              let Icon = Bell;
-              let iconStyle = 'bg-slate-100 text-slate-600';
-              if (notif.type === 'approval') {
-                Icon = CheckCircle2;
-                iconStyle = 'bg-emerald-50 text-emerald-600 border border-emerald-200';
-              } else if (notif.type === 'changes') {
-                Icon = AlertTriangle;
-                iconStyle = 'bg-rose-50 text-rose-600 border border-rose-200';
-              }
-
-              const isSelected = selectedNotifIds.includes(notif.id);
-              const timeStr = new Date(notif.timestamp).toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit',
-              });
-
-              return (
-                <div
-                  key={notif.id}
-                  onClick={() => handleNotificationClick(notif)}
-                  className={`p-3.5 rounded-xl border text-xs transition-all cursor-pointer hover:shadow-md flex flex-col justify-between ${
-                    isSelected
-                      ? 'border-black ring-1 ring-black bg-zinc-50'
-                      : notif.read
-                      ? 'bg-slate-50/70 border-slate-200/80 opacity-75'
-                      : 'bg-white border-slate-300 shadow-2xs font-medium'
-                  }`}
-                  title="Clique para abrir a publicação correspondente"
-                >
-                  <div>
-                    {/* Top row with Selection checkbox and individual Mark Read button */}
-                    <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-100">
-                      <button
-                        type="button"
-                        onClick={e => handleToggleSelectNotif(e, notif.id)}
-                        className="flex items-center gap-1.5 text-[11px] text-slate-600 hover:text-black cursor-pointer"
-                      >
-                        {isSelected ? (
-                          <CheckSquare className="w-4 h-4 text-black" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-400" />
-                        )}
-                        <span>Selecionar</span>
-                      </button>
-
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-slate-400 font-mono">{timeStr}</span>
-                        {!notif.read && (
-                          <button
-                            type="button"
-                            onClick={e => handleToggleSingleRead(e, notif.id)}
-                            className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-zinc-100 hover:bg-emerald-100 hover:text-emerald-800 text-zinc-700 transition-colors flex items-center gap-1 cursor-pointer"
-                            title="Marcar esta notificação como lida"
-                          >
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            <span>Concluir</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2.5">
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconStyle}`}>
-                        <Icon className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-slate-900 truncate text-xs">{notif.title}</h4>
-                        <p className="text-[11px] text-slate-600 mt-1 leading-snug line-clamp-2">{notif.message}</p>
-                        {Boolean(notif.authorName || notif.authorRole) && (
-                          <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 shrink-0" />
-                            <span className="truncate">
-                              Atualizado por: <strong className="text-zinc-800">{notif.authorName || 'Cliente'}</strong> {notif.authorRole ? `(${notif.authorRole === 'admin' ? 'Administrador' : notif.authorRole === 'collaborator' ? 'Colaborador' : notif.authorRole})` : ''}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="font-semibold text-black flex items-center gap-1 hover:underline">
-                      <span>Ver publicação</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </span>
-
-                    {notif.targetPhone && (
-                      <a
-                        href={buildWhatsAppUrl(notif.targetPhone, `*Notificação AprovaFlow*\n${notif.title}\n${notif.message}`)}
-                        onClick={e => e.stopPropagation()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline"
-                      >
-                        <Send className="w-2.5 h-2.5" />
-                        WhatsApp
-                      </a>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </section>
-
-      {/* SECTION 3: CALENDÁRIO COM AS PUBLICAÇÕES DE TODOS OS CLIENTES */}
+      {/* SECTION 2: CALENDÁRIO COM AS PUBLICAÇÕES DE TODOS OS CLIENTES */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -892,6 +680,14 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
         isOpen={!!editingPost}
         onClose={() => setEditingPost(null)}
         postToEdit={editingPost}
+      />
+
+      {/* Notifications Drawer */}
+      <NotificationsDrawer
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        title="Notificações da Agência"
+        role="agency"
       />
     </div>
   );

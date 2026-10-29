@@ -112,10 +112,13 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     for (const file of Array.from(files)) {
       try {
         if (file.type.startsWith('image/')) {
-          // Compress client-side to prevent QuotaExceededError and app crashing
-          const compressed = await compressImage(file, 1200, 1200, 0.82);
+          // Compress to 1080x1350 0.76 quality to guarantee fast sync and stay safely within Firestore 1MB limits
+          const compressed = await compressImage(file, 1080, 1350, 0.76);
           newUrls.push(compressed);
         } else {
+          if (file.size > 750 * 1024) {
+            addToast('warning', 'Vídeo com tamanho elevado', 'Para vídeos pesados, recomendamos utilizar o campo de link do Google Drive para carregamento mais rápido.');
+          }
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
@@ -238,33 +241,28 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     }
 
     try {
+      const payload: any = {
+        projectId: finalProjectId,
+        clientId: targetClientId,
+        title,
+        contentType,
+        mediaType,
+        mediaUrls,
+        caption,
+        scheduledDate,
+        platforms: ['instagram_feed'],
+      };
+      if (mediaType === 'drive_video' && driveVideoUrl) {
+        payload.driveVideoUrl = driveVideoUrl;
+      }
+
       if (postToEdit) {
-        updatePost(postToEdit.id, {
-          projectId: finalProjectId,
-          clientId: targetClientId,
-          title,
-          contentType,
-          mediaType,
-          mediaUrls,
-          driveVideoUrl: mediaType === 'drive_video' ? driveVideoUrl : undefined,
-          caption,
-          scheduledDate,
-          platforms: ['instagram_feed'],
-        });
+        updatePost(postToEdit.id, payload);
         addToast('success', 'Publicação atualizada', 'As alterações foram salvas com sucesso.');
       } else {
         addPost({
-          projectId: finalProjectId,
-          clientId: targetClientId,
-          title,
+          ...payload,
           status: 'pending_approval',
-          contentType,
-          mediaType,
-          mediaUrls,
-          driveVideoUrl: mediaType === 'drive_video' ? driveVideoUrl : undefined,
-          caption,
-          scheduledDate,
-          platforms: ['instagram_feed'],
         });
         addToast('success', 'Publicação criada', 'Conteúdo publicado e pronto para aprovação.');
       }

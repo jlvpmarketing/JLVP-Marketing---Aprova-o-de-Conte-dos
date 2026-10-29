@@ -58,7 +58,6 @@ export const ClientDetailPage: React.FC = () => {
   const [chatPost, setChatPost] = useState<PostContent | null>(null);
   const [detailPost, setDetailPost] = useState<PostContent | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
 
   const client = selectedClient || clients[0];
   const clientProjects = projects.filter(p => p.clientId === client?.id);
@@ -71,18 +70,10 @@ export const ClientDetailPage: React.FC = () => {
     return p.clientId === client?.id;
   });
 
-  // Filter posts by selected month if active
-  const filteredClientPosts = clientPosts.filter(p => {
-    if (selectedMonth !== 'all') {
-      return p.scheduledDate.startsWith(selectedMonth);
-    }
-    return true;
-  });
-
-  // Kanban status groups filtered by month
-  const pendingPosts = filteredClientPosts.filter(p => p.status === 'pending_approval');
-  const changesPosts = filteredClientPosts.filter(p => p.status === 'changes_requested');
-  const approvedPosts = filteredClientPosts.filter(p => p.status === 'approved');
+  // Kanban status groups (without month filter as requested)
+  const pendingPosts = clientPosts.filter(p => p.status === 'pending_approval');
+  const changesPosts = clientPosts.filter(p => p.status === 'changes_requested');
+  const approvedPosts = clientPosts.filter(p => p.status === 'approved');
 
   const handleCopyLink = (projectKey: string) => {
     const link = `${window.location.origin}${window.location.pathname}?view=portal&project=${projectKey}`;
@@ -92,47 +83,33 @@ export const ClientDetailPage: React.FC = () => {
     setTimeout(() => setCopiedKey(null), 2500);
   };
 
-  const handleSendProjectWhatsApp = (proj?: FolderProject | null) => {
-    const targetProj = proj || activeProject;
-    if (!targetProj) {
-      addToast('warning', 'Nenhum Projeto Encontrado', 'Crie ou selecione um projeto primeiro.');
+  // THE ONLY WHATSAPP ACTION ON CLIENT PAGE:
+  // Sends the project approval link directly into the client's WhatsApp group
+  const handleSendProjectToWhatsAppGroup = () => {
+    if (!activeProject) {
+      addToast('warning', 'Nenhum Projeto Selecionado', 'Crie ou selecione uma pasta de projeto primeiro.');
       return;
     }
-    const portalLink = `${window.location.origin}${window.location.pathname}?view=portal&project=${targetProj.clientAccessKey}&mode=client`;
+    const portalLink = `${window.location.origin}${window.location.pathname}?view=portal&project=${activeProject.clientAccessKey}&mode=client`;
     const message = `Ei pessoal, segue o link do calendário editorial com as publicações para aprovação:\n\n${portalLink}`;
-    const phone = client?.phone || '';
+
     try {
-      if (phone) {
-        window.open(buildWhatsAppUrl(phone, message), '_blank');
-      } else {
-        window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-      }
-      addToast('success', 'WhatsApp Aberto!', 'Mensagem com link do projeto gerada com sucesso.');
-    } catch (e) {
-      console.warn('Erro ao abrir WhatsApp:', e);
+      navigator.clipboard.writeText(message);
+    } catch {
+      // ignore
     }
-  };
 
-  const handleSendWhatsAppNotification = (post: PostContent) => {
-    if (!client?.phone || !activeProject) return;
-    const approvalLink = `${window.location.origin}/?view=portal&project=${activeProject.clientAccessKey}`;
-    const dateFormatted = new Date(post.scheduledDate).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    const msg = createNewContentWhatsAppMessage({
-      clientName: client.name,
-      projectName: activeProject.name,
-      postTitle: post.title,
-      approvalLink,
-      agencyName: agencyConfig.agencyName,
-      scheduledDateFormatted: dateFormatted,
-    });
-
-    window.open(buildWhatsAppUrl(client.phone, msg), '_blank');
+    if (client?.whatsappGroupLink && client.whatsappGroupLink.trim()) {
+      let groupUrl = client.whatsappGroupLink.trim();
+      if (!groupUrl.startsWith('http://') && !groupUrl.startsWith('https://')) {
+        groupUrl = `https://${groupUrl}`;
+      }
+      window.open(groupUrl, '_blank');
+      addToast('success', 'Mensagem Copiada & Abrindo Grupo!', 'Mensagem com o link do projeto copiada! Basta colar no grupo do WhatsApp.');
+    } else {
+      addToast('info', 'Link do Projeto Copiado!', 'Cadastre o link do grupo do WhatsApp nas configurações do cliente para abrir o grupo diretamente com 1 clique.');
+      setEditingClientOpen(true);
+    }
   };
 
   if (!client) {
@@ -189,27 +166,23 @@ export const ClientDetailPage: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-1 flex flex-wrap items-center gap-3">
-              <span>Responsável: <strong className="text-white">{client.name}</strong></span>
-              {client.email && <span>· E-mail: {client.email}</span>}
-              <span>· WhatsApp: {client.phone}</span>
+              {client.assignedManagerNames && client.assignedManagerNames.length > 0 ? (
+                <span>Equipe Responsável: <strong className="text-white">{client.assignedManagerNames.join(', ')}</strong></span>
+              ) : client.assignedManagerName ? (
+                <span>Equipe Responsável: <strong className="text-white">{client.assignedManagerName}</strong></span>
+              ) : null}
+              {client.whatsappGroupLink && (
+                <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Grupo de WhatsApp Configurado
+                </span>
+              )}
             </p>
           </div>
         </div>
 
         {/* Client quick actions */}
         <div className="flex flex-wrap items-center gap-2 relative z-10">
-          {client.phone && (
-            <a
-              href={buildWhatsAppUrl(client.phone, `Olá ${client.name}! Equipe ${agencyConfig.agencyName} falando.`)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3.5 py-2 text-xs font-semibold text-emerald-300 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 rounded-xl transition-colors flex items-center gap-1.5 shadow-xs"
-            >
-              <Send className="w-3.5 h-3.5 text-emerald-400" />
-              <span>WhatsApp do Cliente</span>
-            </a>
-          )}
-
           <button
             onClick={() => setEditingClientOpen(true)}
             className="px-3.5 py-2 text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
@@ -324,19 +297,6 @@ export const ClientDetailPage: React.FC = () => {
                       type="button"
                       onClick={e => {
                         e.stopPropagation();
-                        handleSendProjectWhatsApp(proj);
-                      }}
-                      className="font-bold text-emerald-700 hover:text-emerald-900 px-1.5 py-0.5 rounded hover:bg-emerald-50 transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Enviar link do projeto no WhatsApp com mensagem pré-configurada"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>WhatsApp</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={e => {
-                        e.stopPropagation();
                         openClientPortalByProject(proj.clientAccessKey, 'client');
                       }}
                       className="font-bold text-slate-600 hover:text-slate-900 px-1.5 py-0.5 rounded hover:bg-slate-200/60 transition-colors flex items-center gap-1 cursor-pointer"
@@ -365,7 +325,7 @@ export const ClientDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* WORKFLOW HEADER: Kanban Title, Month Selector & Insert Content Button */}
+      {/* WORKFLOW HEADER: Kanban Title & Actions (Single WhatsApp Group Button) */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
@@ -380,17 +340,16 @@ export const ClientDetailPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
             {activeProject && (
               <button
                 type="button"
-                onClick={() => handleSendProjectWhatsApp(activeProject)}
-                className="px-3.5 py-2.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
-                title="Enviar link deste projeto no WhatsApp com mensagem pré-configurada"
+                onClick={handleSendProjectToWhatsAppGroup}
+                className="px-4 py-2.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer active:scale-95"
+                title="Enviar link deste projeto no grupo do WhatsApp do cliente"
               >
                 <MessageCircle className="w-4 h-4 text-emerald-600" />
-                <span className="hidden sm:inline">WhatsApp do Projeto</span>
-                <span className="sm:hidden">WhatsApp</span>
+                <span>Enviar no Grupo do WhatsApp</span>
               </button>
             )}
 
@@ -405,59 +364,6 @@ export const ClientDetailPage: React.FC = () => {
               <Plus className="w-4 h-4" />
               <span>Inserir Conteúdo</span>
             </button>
-          </div>
-        </div>
-
-        {/* MONTH SELECTOR:
-            "Também adicione uma parte de seleção para essa parte para que eu consiga visualizar as opções: para aprovação, em alteração e aprovados, por mês. Assim, eu seleciono o mês que eu quero e vejo todas as publicações daquele mês."
-        */}
-        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-xs font-bold text-slate-700">Filtrar Demandas por Mês:</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-            <button
-              type="button"
-              onClick={() => setSelectedMonth('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                selectedMonth === 'all'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Todos os Meses ({clientPosts.length})
-            </button>
-
-            {availableMonths.map(monthStr => {
-              const [y, m] = monthStr.split('-');
-              const date = new Date(parseInt(y), parseInt(m) - 1, 1);
-              const label = date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
-              const count = clientPosts.filter(p => p.scheduledDate.startsWith(monthStr)).length;
-              const isSelected = selectedMonth === monthStr;
-
-              return (
-                <button
-                  key={monthStr}
-                  type="button"
-                  onClick={() => setSelectedMonth(monthStr)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
-                    isSelected
-                      ? 'bg-brand text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <CalendarIcon className="w-3 h-3 opacity-70" />
-                  <span className="capitalize">{label}</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
           </div>
         </div>
       </div>
@@ -493,7 +399,6 @@ export const ClientDetailPage: React.FC = () => {
                   role="agency"
                   onOpenDetail={p => setDetailPost(p)}
                   onOpenChat={p => setChatPost(p)}
-                  onSendWhatsApp={client.phone ? handleSendWhatsAppNotification : undefined}
                 />
               ))
             )}
@@ -529,7 +434,6 @@ export const ClientDetailPage: React.FC = () => {
                   role="agency"
                   onOpenDetail={p => setDetailPost(p)}
                   onOpenChat={p => setChatPost(p)}
-                  onSendWhatsApp={client.phone ? handleSendWhatsAppNotification : undefined}
                 />
               ))
             )}
@@ -565,7 +469,6 @@ export const ClientDetailPage: React.FC = () => {
                   role="agency"
                   onOpenDetail={p => setDetailPost(p)}
                   onOpenChat={p => setChatPost(p)}
-                  onSendWhatsApp={client.phone ? handleSendWhatsAppNotification : undefined}
                 />
               ))
             )}
