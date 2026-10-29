@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { PostContent, AgencyUser } from '../types';
-import { buildWhatsAppUrl, createChangesRequestedWhatsAppMessage } from '../utils/whatsapp';
+import { PostContent } from '../types';
 import { AlertTriangle, Send, X, MessageSquare, Check } from 'lucide-react';
 
 interface RequestChangesModalProps {
@@ -13,7 +12,6 @@ interface RequestChangesModalProps {
 export const RequestChangesModal: React.FC<RequestChangesModalProps> = ({ isOpen, onClose, post }) => {
   const { requestChangesPost, agencyConfig, clients, projects, users, addToast } = useApp();
   const [note, setNote] = useState('');
-  const [notifyWhatsApp, setNotifyWhatsApp] = useState(true);
 
   if (!isOpen || !post) return null;
 
@@ -28,34 +26,7 @@ export const RequestChangesModal: React.FC<RequestChangesModalProps> = ({ isOpen
     }
 
     requestChangesPost(post.id, note.trim());
-
-    if (notifyWhatsApp) {
-      const assignedManagers = users.filter((m: AgencyUser) => 
-        Boolean(m.phone) && (
-          (client?.assignedManagerIds && client.assignedManagerIds.includes(m.id)) ||
-          (client?.assignedManagerName && m.name === client.assignedManagerName)
-        )
-      );
-
-      const targetList: { phone: string; name: string }[] = assignedManagers.length > 0
-        ? assignedManagers.map((m: AgencyUser) => ({ phone: m.phone!, name: m.name }))
-        : agencyConfig.accountManagerPhone
-        ? [{ phone: agencyConfig.accountManagerPhone, name: agencyConfig.accountManagerName }]
-        : [];
-
-      targetList.forEach((target: { phone: string; name: string }) => {
-        const waMsg = createChangesRequestedWhatsAppMessage({
-          managerName: target.name,
-          clientName: client?.name || 'Cliente',
-          projectName: project?.name || 'Projeto',
-          postTitle: post.title,
-          note: note.trim(),
-        });
-        window.open(buildWhatsAppUrl(target.phone, waMsg), '_blank');
-      });
-    }
-
-    addToast('warning', 'Solicitação Registrada', 'Os responsáveis da agência foram notificados para os ajustes.');
+    addToast('warning', 'Solicitação Registrada', 'Sua solicitação de ajuste foi registrada e a equipe foi notificada.');
     onClose();
   };
 
@@ -99,23 +70,6 @@ export const RequestChangesModal: React.FC<RequestChangesModalProps> = ({ isOpen
               className="w-full px-3.5 py-2.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 leading-relaxed resize-none"
             />
           </div>
-
-          {agencyConfig.accountManagerPhone && (
-            <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-200 flex items-center justify-between">
-              <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={notifyWhatsApp}
-                  onChange={e => setNotifyWhatsApp(e.target.checked)}
-                  className="rounded text-emerald-600 focus:ring-emerald-500"
-                />
-                <span>Enviar aviso imediato via WhatsApp para o gerente</span>
-              </label>
-              <span className="text-[11px] font-semibold text-emerald-700 font-mono">
-                {agencyConfig.accountManagerName}
-              </span>
-            </div>
-          )}
 
           <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
             <button

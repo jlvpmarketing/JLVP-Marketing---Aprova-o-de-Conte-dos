@@ -68,6 +68,7 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
   
   // Interactive KPI Filter State
   const [activeKpiFilter, setActiveKpiFilter] = useState<'none' | 'pending' | 'changes' | 'approved'>('none');
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
 
   // Active clients & projects filter - ignore any posts from deleted clients or projects
   const activeClientIds = new Set(clients.map(c => c.id));
@@ -234,37 +235,88 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
           </div>
         </div>
 
-        {/* Month Selector Dropdown for Agency Dashboard */}
-        <div className="mt-6 pt-5 border-t border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Month Selector Box opening downwards */}
+        <div className="mt-6 pt-5 border-t border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-30">
           <div className="flex items-center gap-2 text-xs">
             <span className="text-amber-400 font-bold">Mês de Referência:</span>
-            <span className="text-zinc-400 text-[11px]">Filtre as métricas e posts por mês</span>
+            <span className="text-zinc-400 text-[11px]">Clique na caixinha para selecionar o mês desejado</span>
           </div>
 
-          <div className="relative min-w-[220px]">
-            <select
-              value={selectedMonthFilter}
-              onChange={e => setSelectedMonthFilter(e.target.value)}
-              className="w-full appearance-none bg-zinc-900 border border-zinc-700 hover:border-zinc-500 text-white text-xs font-bold py-2.5 pl-4 pr-10 rounded-xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all shadow-inner"
+          <div className="relative min-w-[260px]">
+            {/* Box Trigger */}
+            <button
+              type="button"
+              onClick={() => setIsMonthDropdownOpen(prev => !prev)}
+              className="w-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl cursor-pointer flex items-center justify-between transition-all shadow-inner focus:outline-none focus:ring-2 focus:ring-amber-400"
             >
-              <option value="all" className="bg-zinc-950 text-white">
-                Todos os Meses ({posts.length} posts)
-              </option>
-              {availableMonths.map(monthStr => {
-                const [y, m] = monthStr.split('-');
-                const date = new Date(parseInt(y), parseInt(m) - 1, 1);
-                const label = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                const count = posts.filter(p => p.scheduledDate.startsWith(monthStr)).length;
-                return (
-                  <option key={monthStr} value={monthStr} className="bg-zinc-950 text-white">
-                    {label.charAt(0).toUpperCase() + label.slice(1)} ({count} posts)
-                  </option>
-                );
-              })}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-zinc-400">
-              <ChevronDown className="w-4 h-4 text-amber-400" />
-            </div>
+              <div className="flex items-center gap-2 truncate">
+                <CalendarIcon className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="truncate">
+                  {selectedMonthFilter === 'all' ? (
+                    `Todos os Meses (${posts.length} posts)`
+                  ) : (() => {
+                    const [y, m] = selectedMonthFilter.split('-');
+                    const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+                    const label = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                    const count = posts.filter(p => p.scheduledDate.startsWith(selectedMonthFilter)).length;
+                    return `${label.charAt(0).toUpperCase() + label.slice(1)} (${count} posts)`;
+                  })()}
+                </span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-amber-400 shrink-0 transition-transform duration-200 ${isMonthDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Dropdown Box Menu (Opens downwards) */}
+            {isMonthDropdownOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setIsMonthDropdownOpen(false)}
+                />
+                <div className="absolute top-full mt-2 left-0 right-0 z-50 bg-zinc-950 border border-zinc-700 rounded-2xl shadow-2xl py-2 max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-150">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMonthFilter('all');
+                      setIsMonthDropdownOpen(false);
+                    }}
+                    className={`w-full px-4 py-2.5 text-xs text-left flex items-center justify-between hover:bg-zinc-800 transition-colors cursor-pointer ${
+                      selectedMonthFilter === 'all' ? 'text-amber-400 font-bold bg-zinc-900' : 'text-zinc-200'
+                    }`}
+                  >
+                    <span>Todos os Meses ({posts.length} posts)</span>
+                    {selectedMonthFilter === 'all' && <Check className="w-4 h-4 text-amber-400" />}
+                  </button>
+
+                  <div className="my-1 border-t border-zinc-800" />
+
+                  {availableMonths.map(monthStr => {
+                    const [y, m] = monthStr.split('-');
+                    const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+                    const label = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                    const count = posts.filter(p => p.scheduledDate.startsWith(monthStr)).length;
+                    const isSelected = selectedMonthFilter === monthStr;
+
+                    return (
+                      <button
+                        key={monthStr}
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonthFilter(monthStr);
+                          setIsMonthDropdownOpen(false);
+                        }}
+                        className={`w-full px-4 py-2 text-xs text-left flex items-center justify-between hover:bg-zinc-800 transition-colors cursor-pointer ${
+                          isSelected ? 'text-amber-400 font-bold bg-zinc-900' : 'text-zinc-200'
+                        }`}
+                      >
+                        <span className="capitalize">{label} ({count} posts)</span>
+                        {isSelected && <Check className="w-4 h-4 text-amber-400" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
 

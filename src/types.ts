@@ -147,6 +147,7 @@ export interface NotificationItem {
   link?: string;
   targetPhone?: string;
   postId?: string;
+  projectId?: string;
   clientId?: string;
   authorName?: string;
   authorRole?: string;

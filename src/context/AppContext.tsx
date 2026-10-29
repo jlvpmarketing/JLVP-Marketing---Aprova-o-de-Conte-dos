@@ -248,7 +248,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   // Modals state - User requested: "O aplicativo deve se iniciar na tela de login"
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(true);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'portal' && params.get('project')) {
+        return false;
+      }
+      return true;
+    } catch {
+      return true;
+    }
+  });
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -260,9 +270,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   const [agencyPage, setAgencyPage] = useState<'home' | 'client_detail' | 'clients' | 'calendar' | 'notifications'>('home');
-  const [currentView, setCurrentView] = useState<'agency' | 'client_portal'>('agency');
-  const [portalProjectKey, setPortalProjectKey] = useState<string | null>(null);
-  const [portalMode, setPortalMode] = useState<'client' | 'agency'>('client');
+  const [currentView, setCurrentView] = useState<'agency' | 'client_portal'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('view') === 'portal' && params.get('project') ? 'client_portal' : 'agency';
+    } catch {
+      return 'agency';
+    }
+  });
+  const [portalProjectKey, setPortalProjectKey] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('project') || null;
+    } catch {
+      return null;
+    }
+  });
+  const [portalMode, setPortalMode] = useState<'client' | 'agency'>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('mode') === 'agency' ? 'agency' : 'client';
+    } catch {
+      return 'client';
+    }
+  });
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const openClientDetailPage = (clientId: string) => {
@@ -885,6 +916,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       type: 'new_content',
       targetPhone: client?.phone,
       postId: newPost.id,
+      projectId: newPost.projectId,
       clientId: newPost.clientId,
     });
 
@@ -912,10 +944,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (prevPost && prevPost.status === 'changes_requested' && (updates.status === 'pending_approval' || (updates.mediaUrls && updates.mediaUrls !== prevPost.mediaUrls))) {
       addNotification({
         recipient: 'client',
-        title: 'Ajuste Realizado no Post',
+        title: 'Solicitação de Ajuste Respondida',
         message: `As alterações em "${prevPost.title}" foram concluídas pela agência e o post está pronto para nova revisão.`,
         type: 'new_content',
         postId: prevPost.id,
+        projectId: prevPost.projectId,
         clientId: prevPost.clientId,
         authorName: currentUser?.name || 'Agência',
         authorRole: 'Agência',
@@ -1073,16 +1106,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const isAgencyAuthor = authorRole === 'agency';
     const notifTitle = isAgencyAuthor 
-      ? `Ajuste respondido por ${finalAuthorName}` 
+      ? `Ajuste respondido pela Agência (${finalAuthorName})` 
       : `Novo comentário de ${finalAuthorName}`;
 
     addNotification({
       recipient,
       title: notifTitle,
-      message: `Em "${post?.title || 'Conteúdo'}": ${text.slice(0, 60)}...`,
+      message: `Em "${post?.title || 'Conteúdo'}": ${text.slice(0, 70)}`,
       type: 'comment',
       targetPhone,
       postId: post?.id,
+      projectId: post?.projectId,
       clientId: post?.clientId,
       authorName: finalAuthorName,
       authorRole: finalRoleLabel,

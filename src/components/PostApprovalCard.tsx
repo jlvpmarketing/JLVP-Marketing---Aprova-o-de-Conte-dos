@@ -3,7 +3,6 @@ import { useApp } from '../context/AppContext';
 import { PostContent } from '../types';
 import { getDriveEmbedUrl } from '../utils/drivePlayer';
 import { getContentTypeInfo, isVideoUrl } from '../utils/contentTypeHelper';
-import { buildWhatsAppUrl, createApprovedWhatsAppMessage } from '../utils/whatsapp';
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -52,18 +51,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
     e.stopPropagation();
     setApproving(true);
     approvePost(post.id, client?.name || 'Cliente');
-
-    if (agencyConfig.accountManagerPhone) {
-      const waMsg = createApprovedWhatsAppMessage({
-        managerName: agencyConfig.accountManagerName,
-        clientName: client?.name || 'Cliente',
-        projectName: project?.name || 'Projeto',
-        postTitle: post.title,
-        agencyName: agencyConfig.agencyName,
-      });
-      window.open(buildWhatsAppUrl(agencyConfig.accountManagerPhone, waMsg), '_blank');
-      addToast('success', 'Post Aprovado!', 'A agência foi notificada em tempo real.');
-    }
+    addToast('success', 'Publicação Aprovada!', 'O status foi atualizado para Aprovado com sucesso.');
   };
 
   const handleCardClick = () => {
@@ -258,17 +246,21 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
 
       {/* Card Action Controls */}
       <div 
-        className="p-3 bg-white border-t border-slate-100 flex items-center justify-between gap-2 mt-auto"
+        className={`p-3 bg-white border-t border-slate-100 flex items-center gap-2 mt-auto ${
+          role === 'client' ? 'justify-end' : 'justify-between'
+        }`}
         onClick={e => e.stopPropagation()}
       >
-        <button
-          type="button"
-          onClick={() => onOpenChat(post)}
-          className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1"
-        >
-          <MessageSquare className="w-3.5 h-3.5 text-indigo-600" />
-          <span>Chat ({post.comments.length})</span>
-        </button>
+        {role === 'agency' && (
+          <button
+            type="button"
+            onClick={() => onOpenChat(post)}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1 cursor-pointer"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Chat ({post.comments.length})</span>
+          </button>
+        )}
 
         {/* Client Portal Controls:
             CRITICAL REQUIREMENT:
