@@ -65,12 +65,6 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     return clientProjects[0]?.id || '';
   });
 
-  useEffect(() => {
-    if (!clientProjects.some(p => p.id === projectId)) {
-      setProjectId(clientProjects[0]?.id || '');
-    }
-  }, [targetClientId, projects]);
-
   const [contentType, setContentType] = useState<ContentTypeFormat>(() => {
     if (postToEdit?.contentType) return postToEdit.contentType;
     if (postToEdit) return getPostContentType(postToEdit);
@@ -98,6 +92,49 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
+  // RESET or POPULATE form fields whenever modal opens or postToEdit changes
+  // This completely eliminates ghost postToEdit state from overwriting previous approved posts!
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (postToEdit) {
+      setTargetClientId(postToEdit.clientId);
+      setProjectId(postToEdit.projectId);
+      setContentType(postToEdit.contentType || getPostContentType(postToEdit));
+      setTitle(postToEdit.title || '');
+      setMediaType(postToEdit.mediaType || 'image');
+      setMediaUrls(postToEdit.mediaUrls ? [...postToEdit.mediaUrls] : []);
+      setDriveVideoUrl(postToEdit.driveVideoUrl || '');
+      setCaption(postToEdit.caption || '');
+      setScheduledDate(postToEdit.scheduledDate || new Date().toISOString().slice(0, 16));
+    } else {
+      const defaultCli = selectedClientId || (clients[0]?.id || '');
+      setTargetClientId(defaultCli);
+      const cProjs = projects.filter(p => p.clientId === defaultCli);
+      const defaultProj = selectedProjectId && cProjs.some(p => p.id === selectedProjectId)
+        ? selectedProjectId
+        : (cProjs[0]?.id || '');
+      setProjectId(defaultProj);
+      setContentType('static');
+      setTitle('');
+      setMediaType('image');
+      setMediaUrls([]);
+      setDriveVideoUrl('');
+      setCaption('');
+      const d = new Date();
+      d.setDate(d.getDate() + 3);
+      d.setHours(10, 0, 0, 0);
+      setScheduledDate(d.toISOString().slice(0, 16));
+    }
+    setActiveSlide(0);
+  }, [isOpen, postToEdit]);
+
+  useEffect(() => {
+    if (!clientProjects.some(p => p.id === projectId)) {
+      setProjectId(clientProjects[0]?.id || '');
+    }
+  }, [targetClientId, projects]);
+
   if (!isOpen) return null;
 
   const currentClient = clients.find(c => c.id === targetClientId) || selectedClient || clients[0];
@@ -112,12 +149,13 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     for (const file of Array.from(files)) {
       try {
         if (file.type.startsWith('image/')) {
-          // Compress to 1080x1350 0.76 quality to guarantee fast sync and stay safely within Firestore 1MB limits
-          const compressed = await compressImage(file, 1080, 1350, 0.76);
+          // Compress to 960x1200 0.72 quality (~60KB to 90KB per image)
+          // Guarantees fast cloud sync and never exceeds Firestore's 1MB document limit
+          const compressed = await compressImage(file, 960, 1200, 0.72);
           newUrls.push(compressed);
         } else {
-          if (file.size > 750 * 1024) {
-            addToast('warning', 'Vídeo com tamanho elevado', 'Para vídeos pesados, recomendamos utilizar o campo de link do Google Drive para carregamento mais rápido.');
+          if (file.size > 500 * 1024) {
+            addToast('warning', 'Vídeo pesado detectado', 'Para vídeos com alta resolução, utilize a opção "Vídeo (Google Drive)" para evitar limites de armazenamento do banco de dados.');
           }
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();

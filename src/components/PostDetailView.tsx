@@ -348,52 +348,54 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
             </div>
           </div>
 
-          {/* SECTION 5: CHAT E COMENTÁRIOS */}
-          <div className="space-y-3 pt-2 border-t border-slate-200">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-indigo-600" />
-              <span>Chat & Comentários Deste Post ({post.comments.length})</span>
-            </h3>
+          {/* SECTION 5: CHAT DE AJUSTE (Exibido APENAS quando ajuste for solicitado) */}
+          {(post.status === 'changes_requested' || Boolean(post.requestedChangesNote) || post.comments.some(c => c.text.includes('[SOLICITAÇÃO DE AJUSTE]'))) && (
+            <div className="space-y-3 pt-2 border-t border-slate-200">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-rose-600" />
+                <span>Alinhamento do Ajuste Solicitado ({post.comments.length})</span>
+              </h3>
 
-            <div className="space-y-2.5 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
-              {post.comments.length === 0 ? (
-                <p className="text-slate-400 italic text-center py-3 text-xs">
-                  Nenhum comentário registrado ainda. Deseja alinhar algum detalhe com a agência? Digite abaixo.
-                </p>
-              ) : (
-                post.comments.map(c => (
-                  <div key={c.id} className="p-3 rounded-xl bg-white border border-slate-100 shadow-2xs text-xs space-y-1">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <strong className="text-slate-800 font-semibold">{c.authorName}</strong>
-                      <span className="font-mono">
-                        {new Date(c.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+              <div className="space-y-2.5 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+                {post.comments.length === 0 ? (
+                  <p className="text-slate-400 italic text-center py-3 text-xs">
+                    Nenhum detalhe adicional registrado no ajuste. Deseja complementar? Digite abaixo.
+                  </p>
+                ) : (
+                  post.comments.map(c => (
+                    <div key={c.id} className="p-3 rounded-xl bg-white border border-slate-100 shadow-2xs text-xs space-y-1">
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <strong className="text-slate-800 font-semibold">{c.authorName}</strong>
+                        <span className="font-mono">
+                          {new Date(c.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-slate-700 leading-relaxed">{c.text}</p>
                     </div>
-                    <p className="text-slate-700 leading-relaxed">{c.text}</p>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
 
-              {/* Comment submission form */}
-              <form onSubmit={handleSendComment} className="flex items-center gap-2 pt-2">
-                <input
-                  type="text"
-                  value={newComment}
-                  onChange={e => setNewComment(e.target.value)}
-                  placeholder="Escrever comentário ou tirar dúvida sobre este post..."
-                  className="flex-1 px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white"
-                />
-                <button
-                  type="submit"
-                  disabled={!newComment.trim()}
-                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Enviar</span>
-                </button>
-              </form>
+                {/* Comment submission form */}
+                <form onSubmit={handleSendComment} className="flex items-center gap-2 pt-2">
+                  <input
+                    type="text"
+                    value={newComment}
+                    onChange={e => setNewComment(e.target.value)}
+                    placeholder="Escrever resposta ou observação sobre o ajuste..."
+                    className="flex-1 px-3.5 py-2.5 text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 bg-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newComment.trim()}
+                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shrink-0"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Enviar</span>
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* SECTION 6: BOTÕES DE AÇÃO */}
           <div className="p-5 sm:p-6 rounded-2xl bg-slate-100 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">

@@ -42,6 +42,7 @@ export const AuditLogModal: React.FC = () => {
     setIsAuditModalOpen, 
     auditLogs, 
     clearAuditLogs, 
+    deleteAuditLogItem,
     users, 
     currentUser,
     exportDatabaseBackup 
@@ -203,9 +204,25 @@ export const AuditLogModal: React.FC = () => {
                         </span>
                       </div>
 
-                      <span className="text-[11px] text-slate-400 font-mono shrink-0">
-                        {formattedTime}
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          {formattedTime}
+                        </span>
+                        {currentUser?.role === 'owner' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm('Excluir esta ação do histórico de auditoria?')) {
+                                deleteAuditLogItem(log.id);
+                              }
+                            }}
+                            className="text-slate-300 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Excluir ação (apenas Dona da agência)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <p className="text-xs text-slate-700 mt-1 leading-relaxed">

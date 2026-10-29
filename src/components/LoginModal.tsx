@@ -186,17 +186,6 @@ export const LoginModal: React.FC = () => {
 
         {/* RIGHT SIDE: Login Form on PC */}
         <div className="md:w-7/12 p-7 sm:p-10 flex flex-col justify-center bg-white relative">
-          {currentUser && (
-            <button
-              type="button"
-              onClick={() => setIsLoginModalOpen(false)}
-              className="absolute top-5 right-5 p-1.5 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
-              title="Fechar tela de login"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
-
           <div className="max-w-md w-full mx-auto">
             <div className="mb-6">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 mb-2">

@@ -27,7 +27,18 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { PostContent, Client } from './types';
 
 const MainApp: React.FC = () => {
-  const { currentView, agencyPage, posts, clients, projects } = useApp();
+  const { 
+    currentView, 
+    agencyPage, 
+    posts, 
+    clients, 
+    projects,
+    isContentModalOpen,
+    editingPost,
+    openNewPostModal,
+    openEditPostModal,
+    closeContentModal
+  } = useApp();
 
   const activeClientIds = new Set(clients.map(c => c.id));
   const activeProjectIds = new Set(projects.map(p => p.id));
@@ -38,7 +49,6 @@ const MainApp: React.FC = () => {
   const [clientModalOpen, setClientModalOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
-  const [contentModalOpen, setContentModalOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [databaseBackupOpen, setDatabaseBackupOpen] = useState(false);
   const [selectedCalendarPost, setSelectedCalendarPost] = useState<PostContent | null>(null);
@@ -89,7 +99,7 @@ const MainApp: React.FC = () => {
           <HomeOverview
             onOpenNewClient={handleOpenNewClient}
             onOpenEditClient={handleOpenEditClient}
-            onOpenNewPost={() => setContentModalOpen(true)}
+            onOpenNewPost={() => openNewPostModal()}
           />
         )}
 
@@ -127,7 +137,7 @@ const MainApp: React.FC = () => {
             <HomeOverview
               onOpenNewClient={handleOpenNewClient}
               onOpenEditClient={handleOpenEditClient}
-              onOpenNewPost={() => setContentModalOpen(true)}
+              onOpenNewPost={() => openNewPostModal()}
             />
           </div>
         )}
@@ -154,8 +164,9 @@ const MainApp: React.FC = () => {
       />
 
       <ContentUploadModal
-        isOpen={contentModalOpen}
-        onClose={() => setContentModalOpen(false)}
+        isOpen={isContentModalOpen}
+        onClose={closeContentModal}
+        postToEdit={editingPost}
       />
 
       <NotificationsDrawer
@@ -169,7 +180,7 @@ const MainApp: React.FC = () => {
         role="agency"
         onEditPost={p => {
           setSelectedCalendarPost(null);
-          setContentModalOpen(true);
+          openEditPostModal(p);
         }}
       />
 

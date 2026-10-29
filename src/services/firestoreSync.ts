@@ -216,6 +216,15 @@ export const firestoreSync = {
     }
   },
 
+  // Delete Audit Log
+  async deleteAuditLog(logId: string) {
+    try {
+      await deleteDoc(doc(db, 'audit_logs', logId));
+    } catch (err) {
+      console.warn('Erro ao remover log do Firestore:', err);
+    }
+  },
+
   // Save Agency Config
   async saveAgencyConfig(config: AgencyConfig) {
     try {

@@ -57,6 +57,7 @@ interface AppContextType {
   auditLogs: AuditLogItem[];
   addAuditLog: (action: AuditLogItem['action'], details: string, entityId?: string, entityName?: string) => void;
   clearAuditLogs: () => void;
+  deleteAuditLogItem: (logId: string) => void;
 
   // Month filter for posts
   selectedMonthFilter: string; // 'all' or 'YYYY-MM'
@@ -94,6 +95,17 @@ interface AppContextType {
   approvePost: (postId: string, approvedByName?: string) => void;
   requestChangesPost: (postId: string, note: string) => void;
   addComment: (postId: string, authorRole: 'agency' | 'client', authorName: string, text: string) => void;
+  deleteComment: (postId: string, commentId: string) => void;
+  clearPostComments: (postId: string) => void;
+
+  // Global Content Modal Management (Single instance prevents duplicates and stale references)
+  isContentModalOpen: boolean;
+  setIsContentModalOpen: (open: boolean) => void;
+  editingPost: PostContent | null;
+  setEditingPost: (post: PostContent | null) => void;
+  openNewPostModal: (clientId?: string, projectId?: string) => void;
+  openEditPostModal: (post: PostContent) => void;
+  closeContentModal: () => void;
 
   notifications: NotificationItem[];
   addNotification: (item: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>) => void;
@@ -133,6 +145,21 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'aprovaflow_current_user_v1',
   AUDIT_LOGS: 'aprovaflow_audit_logs_v1',
   MONTH_FILTER: 'aprovaflow_month_filter_v1',
+};
+
+const SESSION_ACTIVE_KEY = 'aprovaflow_session_active_v1';
+const SESSION_DATE_KEY = 'aprovaflow_session_date_v1';
+
+const getTodayDateStr = () => new Date().toISOString().slice(0, 10);
+
+const isSessionValidForToday = (): boolean => {
+  try {
+    const isActive = sessionStorage.getItem(SESSION_ACTIVE_KEY) === 'true';
+    const date = sessionStorage.getItem(SESSION_DATE_KEY);
+    return isActive && date === getTodayDateStr();
+  } catch {
+    return false;
+  }
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -207,6 +234,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [currentUser, setCurrentUser] = useState<AgencyUser | null>(() => {
     try {
+      if (!isSessionValidForToday()) {
+        return null;
+      }
       const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       if (saved) {
         const u = JSON.parse(saved);
@@ -247,11 +277,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   });
 
-  // Modals state - User requested: "O aplicativo deve se iniciar na tela de login"
+  // Modals state - Session rules:
+  // - On first use of the day or after closing browser: requires login
+  // - On refresh (F5): preserves session without re-prompting login
+  // - Client portal view: bypasses agency login
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       if (params.get('view') === 'portal' && params.get('project')) {
+        return false;
+      }
+      if (isSessionValidForToday() && localStorage.getItem(STORAGE_KEYS.CURRENT_USER)) {
         return false;
       }
       return true;
@@ -262,6 +298,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isContentModalOpen, setIsContentModalOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<PostContent | null>(null);
 
   const [selectedClientId, setSelectedClientId] = useState<string>(() => clients[0]?.id || 'cli-1');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(() => {
@@ -542,7 +580,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     firestoreSync.saveAuditLog(newLog);
   };
 
+  const deleteAuditLogItem = (logId: string) => {
+    if (currentUser?.role !== 'owner') {
+      addToast('error', 'Ação Não Permitida', 'Apenas a Dona da agência pode excluir ações do histórico.');
+      return;
+    }
+    setAuditLogs(prev => prev.filter(l => l.id !== logId));
+    firestoreSync.deleteAuditLog(logId);
+    addToast('info', 'Ação Removida', 'O registro foi excluído do histórico com sucesso.');
+  };
+
   const clearAuditLogs = () => {
+    if (currentUser?.role !== 'owner') {
+      addToast('error', 'Ação Não Permitida', 'Apenas a Dona da agência pode zerar o histórico de auditoria.');
+      return;
+    }
+    auditLogs.forEach(l => firestoreSync.deleteAuditLog(l.id));
     setAuditLogs([]);
     addToast('info', 'Histórico Limpo', 'O histórico de auditoria foi zerado.');
   };
@@ -583,6 +636,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setUsers(prev => prev.map(u => u.id === user!.id ? updatedUser : u));
     firestoreSync.saveUser(updatedUser);
 
+    try {
+      sessionStorage.setItem(SESSION_ACTIVE_KEY, 'true');
+      sessionStorage.setItem(SESSION_DATE_KEY, getTodayDateStr());
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
+    } catch (err) {
+      console.warn('Erro ao salvar sessão:', err);
+    }
+
     addAuditLog('login', `Usuário "${user.name}" (${user.role}) realizou login no sistema.`, user.id, user.name);
     addToast('success', `Bem-vindo(a), ${user.name}!`, `Conectado como ${user.role === 'owner' ? 'Dona da Agência' : user.role === 'manager' ? 'Gerente de Contas' : user.role === 'creator' ? 'Criador de Conteúdo' : 'Visualizador'}.`);
     setIsLoginModalOpen(false);
@@ -592,6 +653,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const logout = () => {
     if (currentUser) {
       addAuditLog('login', `Usuário "${currentUser.name}" encerrou a sessão.`, currentUser.id, currentUser.name);
+    }
+    try {
+      sessionStorage.removeItem(SESSION_ACTIVE_KEY);
+      sessionStorage.removeItem(SESSION_DATE_KEY);
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    } catch (err) {
+      console.warn('Erro ao limpar sessão:', err);
     }
     setCurrentUser(null);
     setIsLoginModalOpen(true);
@@ -1125,6 +1193,55 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     addAuditLog('comment_added', `Comentou em "${post?.title || 'post'}": "${text.slice(0, 70)}..."`, post?.id, post?.title);
   };
 
+  const deleteComment = (postId: string, commentId: string) => {
+    setPosts(prev => prev.map(p => {
+      if (p.id === postId) {
+        const updated: PostContent = {
+          ...p,
+          comments: p.comments.filter(c => c.id !== commentId),
+        };
+        firestoreSync.savePost(updated);
+        return updated;
+      }
+      return p;
+    }));
+    addToast('info', 'Mensagem Excluída', 'O comentário foi removido com sucesso.');
+  };
+
+  const clearPostComments = (postId: string) => {
+    setPosts(prev => prev.map(p => {
+      if (p.id === postId) {
+        const updated: PostContent = {
+          ...p,
+          comments: [],
+        };
+        firestoreSync.savePost(updated);
+        return updated;
+      }
+      return p;
+    }));
+    addToast('info', 'Conversa Limpa', 'Todas as mensagens deste post foram excluídas.');
+  };
+
+  const openNewPostModal = (clientId?: string, projectId?: string) => {
+    if (clientId) setSelectedClientId(clientId);
+    if (projectId) setSelectedProjectId(projectId);
+    setEditingPost(null);
+    setIsContentModalOpen(true);
+  };
+
+  const openEditPostModal = (post: PostContent) => {
+    setSelectedClientId(post.clientId);
+    setSelectedProjectId(post.projectId);
+    setEditingPost(post);
+    setIsContentModalOpen(true);
+  };
+
+  const closeContentModal = () => {
+    setIsContentModalOpen(false);
+    setEditingPost(null);
+  };
+
   const openClientPortalByProject = (projectKey: string, mode: 'client' | 'agency' = 'agency') => {
     setPortalProjectKey(projectKey);
     setPortalMode(mode);
@@ -1189,6 +1306,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         auditLogs,
         addAuditLog,
         clearAuditLogs,
+        deleteAuditLogItem,
         selectedMonthFilter,
         setSelectedMonthFilter,
         availableMonths,
@@ -1219,6 +1337,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         approvePost,
         requestChangesPost,
         addComment,
+        deleteComment,
+        clearPostComments,
+        isContentModalOpen,
+        setIsContentModalOpen,
+        editingPost,
+        setEditingPost,
+        openNewPostModal,
+        openEditPostModal,
+        closeContentModal,
         notifications,
         addNotification,
         markNotificationsAsRead,

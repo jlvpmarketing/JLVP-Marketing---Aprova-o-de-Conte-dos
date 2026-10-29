@@ -3,7 +3,6 @@ import { useApp } from '../context/AppContext';
 import { Client, PostContent, NotificationItem } from '../types';
 import { CalendarView } from './CalendarView';
 import { PostDetailView } from './PostDetailView';
-import { ContentUploadModal } from './ContentUploadModal';
 import { getContentTypeInfo } from '../utils/contentTypeHelper';
 import { 
   Users, 
@@ -56,12 +55,12 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
     addToast,
     selectedMonthFilter,
     setSelectedMonthFilter,
-    availableMonths
+    availableMonths,
+    openEditPostModal
   } = useApp();
 
   // Modals & Publication Page
   const [selectedPostDetail, setSelectedPostDetail] = useState<PostContent | null>(null);
-  const [editingPost, setEditingPost] = useState<PostContent | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [filterNotifs, setFilterNotifs] = useState<'all' | 'unread'>('all');
   const [selectedNotifIds, setSelectedNotifIds] = useState<string[]>([]);
@@ -723,15 +722,8 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
         role="agency"
         onEditPost={p => {
           setSelectedPostDetail(null);
-          setEditingPost(p);
+          openEditPostModal(p);
         }}
-      />
-
-      {/* Edit Content Modal if triggered from publication page */}
-      <ContentUploadModal
-        isOpen={!!editingPost}
-        onClose={() => setEditingPost(null)}
-        postToEdit={editingPost}
       />
 
       {/* Notifications Drawer */}

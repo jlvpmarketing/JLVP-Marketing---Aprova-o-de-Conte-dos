@@ -4,7 +4,6 @@ import { PostContent, FolderProject } from '../types';
 import { NotionKanbanCard } from './NotionKanbanCard';
 import { PostDetailView } from './PostDetailView';
 import { CalendarView } from './CalendarView';
-import { ContentUploadModal } from './ContentUploadModal';
 import { ProjectFolderModal } from './ProjectFolderModal';
 import { ClientManagerModal } from './ClientManagerModal';
 import { PostChatModal } from './PostChatModal';
@@ -47,11 +46,11 @@ export const ClientDetailPage: React.FC = () => {
     openClientPortalByProject,
     agencyConfig,
     addToast,
-    availableMonths
+    availableMonths,
+    openNewPostModal,
+    openEditPostModal
   } = useApp();
 
-  const [contentModalOpen, setContentModalOpen] = useState(false);
-  const [editingPost, setEditingPost] = useState<PostContent | null>(null);
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<FolderProject | null>(null);
   const [editingClientOpen, setEditingClientOpen] = useState(false);
@@ -355,8 +354,7 @@ export const ClientDetailPage: React.FC = () => {
 
             <button
               onClick={() => {
-                setEditingPost(null);
-                setContentModalOpen(true);
+                openNewPostModal(client?.id, activeProject?.id);
               }}
               style={{ backgroundColor: agencyConfig?.primaryColor || '#000000' }}
               className="px-4 py-2.5 text-xs font-bold text-white rounded-xl transition-all shadow-md hover:opacity-90 flex items-center gap-2 cursor-pointer active:scale-95"
@@ -508,19 +506,8 @@ export const ClientDetailPage: React.FC = () => {
         role="agency"
         onEditPost={p => {
           setDetailPost(null);
-          setEditingPost(p);
-          setContentModalOpen(true);
+          openEditPostModal(p);
         }}
-      />
-
-      {/* Modals */}
-      <ContentUploadModal
-        isOpen={contentModalOpen}
-        onClose={() => {
-          setContentModalOpen(false);
-          setEditingPost(null);
-        }}
-        postToEdit={editingPost}
       />
 
       <ProjectFolderModal
