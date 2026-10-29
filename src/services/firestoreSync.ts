@@ -79,11 +79,17 @@ export const firestoreSync = {
         }
       }
 
-      // 4. Agency Users - check and ensure owner is present
+    // 4. Agency Users - check and ensure owner is present
       const usersSnap = await getDocs(collection(db, 'agency_users'));
       if (usersSnap.empty) {
         for (const u of initialUsers) {
           await setDoc(doc(db, 'agency_users', u.id), u);
         }
       } else {
-        const ownerExists = usersSnap.docs.some(d => (d.data() as AgencyUser).email?.toLowerCase() === 'jlvp
+        const ownerEmail = 'jlvpmarketing@gmail.com';
+        const ownerExists = usersSnap.docs.some(d => (d.data() as AgencyUser).email?.toLowerCase() === ownerEmail);
+        if (!ownerExists && initialUsers.length > 0) {
+          const ownerUser = initialUsers.find(u => u.email === ownerEmail) || initialUsers[0];
+          await setDoc(doc(db, 'agency_users', ownerUser.id), ownerUser);
+        }
+      }
