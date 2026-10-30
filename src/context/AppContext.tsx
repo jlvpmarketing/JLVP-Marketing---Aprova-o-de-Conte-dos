@@ -397,15 +397,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (remotePosts) {
         const cleanRemote = remotePosts.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
         setPosts(prev => {
+          const localMap = new Map(prev.map(p => [p.id, p]));
           const remoteMap = new Map(cleanRemote.map(p => [p.id, p]));
-          // Preserve any local posts created in the last 120 seconds that might still be syncing
+
+          // 1. Process all remote posts, but preserve local posts that were recently updated or have more media
+          const mergedRemote = cleanRemote.map(remotePost => {
+            const localPost = localMap.get(remotePost.id);
+            if (!localPost) return remotePost;
+
+            const localTime = new Date(localPost.updatedAt || localPost.createdAt || 0).getTime();
+            const remoteTime = new Date(remotePost.updatedAt || remotePost.createdAt || 0).getTime();
+
+            const localMediaCount = localPost.mediaUrls?.length || 0;
+            const remoteMediaCount = remotePost.mediaUrls?.length || 0;
+
+            // If the local post has more media (e.g. user added videos to carousel) or has a more recent edit, keep local!
+            if (localMediaCount > remoteMediaCount || localTime > remoteTime) {
+              return localPost;
+            }
+
+            return remotePost;
+          });
+
+          // 2. Preserve any local posts that do not exist yet in remote
           const pendingSync = prev.filter(p => {
             if (remoteMap.has(p.id)) return false;
             if (['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id)) return false;
-            const age = Date.now() - new Date(p.createdAt || 0).getTime();
-            return age < 120000;
+            return true;
           });
-          return [...cleanRemote, ...pendingSync];
+
+          return [...mergedRemote, ...pendingSync];
         });
       }
     });
@@ -997,19 +1018,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updatePost = (id: string, updates: Partial<PostContent>) => {
     const prevPost = posts.find(p => p.id === id);
+    const nowIso = new Date().toISOString();
     setPosts(prev => {
       const exists = prev.some(p => p.id === id);
       if (exists) {
         return prev.map(p => {
           if (p.id === id) {
-            const updated = { ...p, ...updates };
+            const updated = { ...p, ...updates, updatedAt: nowIso };
             firestoreSync.savePost(updated);
             return updated;
           }
           return p;
         });
       } else {
-        const fallback = { id, ...updates } as PostContent;
+        const fallback = { id, ...updates, updatedAt: nowIso } as PostContent;
         firestoreSync.savePost(fallback);
         return [fallback, ...prev];
       }

@@ -99,6 +99,7 @@ export interface PostContent {
   approvedAt?: string;
   approvedBy?: string;
   createdAt: string;
+  updatedAt?: string;
   createdByUserId?: string;
   createdByUserName?: string;
 }

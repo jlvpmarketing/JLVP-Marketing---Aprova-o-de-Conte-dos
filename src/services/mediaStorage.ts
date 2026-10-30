@@ -155,28 +155,27 @@ export const mediaStorage = {
       return cachedData;
     }
 
-    // Fetch chunks from Firestore
+    // Fetch chunks from Firestore with timeout fallback
     try {
       const chunksQuery = query(
         collection(db, 'media_chunks'),
         where('mediaId', '==', mediaId)
       );
-      const snap = await getDocs(chunksQuery);
+      const queryPromise = getDocs(chunksQuery);
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+      const snap = await Promise.race([queryPromise, timeoutPromise]);
 
-      if (snap.empty) {
-        console.warn('Partes da mídia não encontradas no Firestore para:', mediaId);
-        return url;
-      }
+      if (snap && 'docs' in snap && !snap.empty) {
+        const chunks = snap.docs
+          .map(d => d.data() as { index: number; chunk: string; mimeType: string })
+          .sort((a, b) => a.index - b.index);
 
-      const chunks = snap.docs
-        .map(d => d.data() as { index: number; chunk: string; mimeType: string })
-        .sort((a, b) => a.index - b.index);
-
-      const fullData = chunks.map(c => c.chunk).join('');
-      if (fullData) {
-        resolvedUrlCache.set(url, fullData);
-        await saveToIndexedDB(mediaId, fullData);
-        return fullData;
+        const fullData = chunks.map(c => c.chunk).join('');
+        if (fullData) {
+          resolvedUrlCache.set(url, fullData);
+          await saveToIndexedDB(mediaId, fullData);
+          return fullData;
+        }
       }
     } catch (err) {
       console.warn('Erro ao buscar partes da mídia do Firestore:', err);
