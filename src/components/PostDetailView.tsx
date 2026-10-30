@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { PostContent, AgencyUser } from '../types';
 import { getDriveEmbedUrl } from '../utils/drivePlayer';
 import { DriveVideoPlayer } from './DriveVideoPlayer';
-import { getContentTypeInfo, isVideoUrl } from '../utils/contentTypeHelper';
+import { getContentTypeInfo, isVideoUrl, isDriveVideoUrl } from '../utils/contentTypeHelper';
 import { useResolvedMedia } from '../hooks/useResolvedMedia';
 import { 
   X, 
@@ -198,20 +198,37 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                   )
                 ) : resolvedUrls && resolvedUrls.length > 0 ? (
                   <div className="relative w-full h-full flex items-center justify-center bg-black">
-                    {isVideoUrl(resolvedUrls[activeSlide] || resolvedUrls[0]) ? (
-                      <video
-                        src={resolvedUrls[activeSlide] || resolvedUrls[0]}
-                        controls
-                        playsInline
-                        className="w-full h-full object-contain"
-                      />
-                    ) : (
-                      <img
-                        src={resolvedUrls[activeSlide] || resolvedUrls[0]}
-                        alt={post.title}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
+                    {(() => {
+                      const currentMedia = resolvedUrls[activeSlide] || resolvedUrls[0];
+                      if (isDriveVideoUrl(currentMedia)) {
+                        return (
+                          <div className="w-full h-full relative">
+                            <DriveVideoPlayer
+                              url={currentMedia}
+                              title={`${post.title} - Slide ${activeSlide + 1}`}
+                              aspectClass={contentInfo.aspectClass}
+                            />
+                          </div>
+                        );
+                      }
+                      if (isVideoUrl(currentMedia)) {
+                        return (
+                          <video
+                            src={currentMedia}
+                            controls
+                            playsInline
+                            className="w-full h-full object-contain"
+                          />
+                        );
+                      }
+                      return (
+                        <img
+                          src={currentMedia}
+                          alt={post.title}
+                          className="w-full h-full object-cover"
+                        />
+                      );
+                    })()}
 
                     {/* Carousel navigation controls if multi-image */}
                     {resolvedUrls.length > 1 && (

@@ -112,7 +112,7 @@ export const mediaStorage = {
     });
   },
 
-  // Save large media (video or big file) to Firestore in chunks and to IndexedDB locally
+  // Save large media (video or big file) to IndexedDB locally and cache in memory
   async storeMedia(dataUrl: string, mimeType: string = 'video/mp4'): Promise<string> {
     // If it's already a chunkref or small data url (< 250KB), return as is
     if (this.isChunkRef(dataUrl) || dataUrl.length < 250 * 1024) {
@@ -122,35 +122,16 @@ export const mediaStorage = {
     const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const chunkRef = mimeType.startsWith('video') ? `video_chunkref:${mediaId}` : `chunkref:${mediaId}`;
 
-    // 1. Immediately cache in memory and local IndexedDB
+    // 1. Immediately cache in memory and local IndexedDB (instant, reliable, zero quota limits)
     resolvedUrlCache.set(chunkRef, dataUrl);
-    await saveToIndexedDB(mediaId, dataUrl);
-
-    // 2. Upload chunks to Firestore in background
     try {
-      const totalLength = dataUrl.length;
-      const totalChunks = Math.ceil(totalLength / CHUNK_SIZE);
-
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, totalLength);
-        const chunkData = dataUrl.substring(start, end);
-        const chunkDocId = `${mediaId}_chunk_${i}`;
-
-        await setDoc(doc(db, 'media_chunks', chunkDocId), {
-          mediaId,
-          index: i,
-          totalChunks,
-          mimeType,
-          chunk: chunkData,
-          createdAt: new Date().toISOString()
-        });
-      }
-      console.log(`✅ Mídia pesada armazenada em ${totalChunks} partes no Firestore: ${mediaId}`);
+      await saveToIndexedDB(mediaId, dataUrl);
+      console.log(`✅ Mídia pesada armazenada com sucesso no IndexedDB local: ${mediaId}`);
     } catch (err) {
-      console.warn('Erro ao salvar partes da mídia no Firestore (persistido localmente):', err);
+      console.warn('Erro ao salvar no IndexedDB, mantido em memória:', err);
     }
 
+    // Return the reference immediately so saving is instantaneous
     return chunkRef;
   },
 

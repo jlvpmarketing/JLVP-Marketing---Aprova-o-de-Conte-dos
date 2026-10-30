@@ -75,12 +75,23 @@ export function getContentTypeInfo(post: PostContent) {
   }
 }
 
+export function isDriveVideoUrl(url?: string): boolean {
+  if (!url) return false;
+  return (
+    url.startsWith('drive:') ||
+    url.startsWith('drive_video:') ||
+    url.includes('drive.google.com')
+  );
+}
+
 export function isVideoUrl(url?: string): boolean {
   if (!url) return false;
   return (
     url.startsWith('data:video/') ||
     url.startsWith('video_chunkref:') ||
     url.startsWith('blob:') ||
+    isDriveVideoUrl(url) ||
     /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(url)
   );
 }
+

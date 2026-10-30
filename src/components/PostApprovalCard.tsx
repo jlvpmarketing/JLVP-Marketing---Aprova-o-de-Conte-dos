@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { PostContent } from '../types';
 import { getDriveEmbedUrl, extractDriveFileId } from '../utils/drivePlayer';
-import { getContentTypeInfo, isVideoUrl } from '../utils/contentTypeHelper';
+import { getContentTypeInfo, isVideoUrl, isDriveVideoUrl } from '../utils/contentTypeHelper';
 import { useResolvedMedia } from '../hooks/useResolvedMedia';
 import { 
   CheckCircle2, 
@@ -167,22 +167,48 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
           )
         ) : resolvedUrls && resolvedUrls.length > 0 ? (
           <div className="relative w-full h-full bg-black flex items-center justify-center">
-            {isVideoUrl(resolvedUrls[activeSlide] || resolvedUrls[0]) ? (
-              <video
-                src={resolvedUrls[activeSlide] || resolvedUrls[0]}
-                className="w-full h-full object-cover"
-                muted
-                playsInline
-                loop
-                autoPlay
-              />
-            ) : (
-              <img
-                src={resolvedUrls[activeSlide] || resolvedUrls[0]}
-                alt={post.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              />
-            )}
+            {(() => {
+              const currentMedia = resolvedUrls[activeSlide] || resolvedUrls[0];
+              if (isDriveVideoUrl(currentMedia)) {
+                return (
+                  <div className="w-full h-full relative bg-slate-950 flex items-center justify-center">
+                    <img
+                      src={`https://drive.google.com/thumbnail?id=${extractDriveFileId(currentMedia)}&sz=w800`}
+                      alt={post.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <div className="bg-black/80 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md border border-white/20">
+                        <Play className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <span>Vídeo Drive (#{activeSlide + 1})</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              if (isVideoUrl(currentMedia)) {
+                return (
+                  <video
+                    src={currentMedia}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                    loop
+                    autoPlay
+                  />
+                );
+              }
+              return (
+                <img
+                  src={currentMedia}
+                  alt={post.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              );
+            })()}
 
             {/* Carousel navigation buttons */}
             {resolvedUrls.length > 1 && (

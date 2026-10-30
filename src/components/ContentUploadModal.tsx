@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { MediaType, SocialPlatform, PostContent, ContentTypeFormat } from '../types';
-import { getDriveEmbedUrl, isValidDriveUrl } from '../utils/drivePlayer';
-import { getPostContentType, isVideoUrl } from '../utils/contentTypeHelper';
+import { extractDriveFileId, getDriveEmbedUrl, isValidDriveUrl } from '../utils/drivePlayer';
+import { getPostContentType, isVideoUrl, isDriveVideoUrl } from '../utils/contentTypeHelper';
 import { compressImage } from '../utils/imageCompressor';
 import { mediaStorage } from '../services/mediaStorage';
+import { DriveVideoPlayer } from './DriveVideoPlayer';
 import { 
   PlusCircle, 
   Upload, 
@@ -24,7 +25,9 @@ import {
   ChevronLeft,
   ChevronRight,
   GripHorizontal,
-  FolderPlus
+  FolderPlus,
+  Loader2,
+  Link2
 } from 'lucide-react';
 
 interface ContentUploadModalProps {
@@ -92,6 +95,9 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
   const [activeSlide, setActiveSlide] = useState(0);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [driveSlideInput, setDriveSlideInput] = useState('');
+  const [showDriveSlideForm, setShowDriveSlideForm] = useState(false);
 
   // RESET or POPULATE form fields whenever modal opens or postToEdit changes
   useEffect(() => {
@@ -270,9 +276,29 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     addToast('success', 'Pasta criada', 'Pasta "Geral / Feed" criada com sucesso.');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title) {
+  const handleAddDriveSlide = () => {
+    let link = driveSlideInput.trim();
+    if (!link) return;
+    if (!link.startsWith('http://') && !link.startsWith('https://')) {
+      link = `https://${link}`;
+    }
+    const fileId = extractDriveFileId(link);
+    if (!fileId) {
+      addToast('error', 'Link do Drive Inválido', 'Insira um link válido do Google Drive com permissão pública de visualização.');
+      return;
+    }
+    setMediaUrls(prev => [...prev, link]);
+    setDriveSlideInput('');
+    setShowDriveSlideForm(false);
+    addToast('success', 'Slide de Vídeo Adicionado', 'Vídeo do Google Drive inserido com sucesso.');
+  };
+
+  const handleSave = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (isSaving) return;
+
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
       addToast('error', 'Título obrigatório', 'Por favor, insira o título do conteúdo.');
       return;
     }
@@ -294,19 +320,31 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       }
     }
 
-    if (mediaType === 'drive_video' && !driveVideoUrl) {
-      addToast('error', 'Link do Drive ausente', 'Insira o link de compartilhamento do Google Drive.');
+    // Auto-fix Drive URL if missing https://
+    let cleanDriveUrl = driveVideoUrl.trim();
+    if (cleanDriveUrl && !cleanDriveUrl.startsWith('http://') && !cleanDriveUrl.startsWith('https://')) {
+      cleanDriveUrl = `https://${cleanDriveUrl}`;
+      setDriveVideoUrl(cleanDriveUrl);
+    }
+
+    if ((contentType === 'reel' || mediaType === 'drive_video') && !cleanDriveUrl && mediaUrls.length === 0) {
+      addToast('error', 'Vídeo necessário', 'Insira o link do Google Drive ou envie o arquivo de vídeo do Reel.');
       return;
     }
 
-    if ((mediaType === 'image' || mediaType === 'carousel') && mediaUrls.length === 0) {
+    if (contentType === 'carousel' && mediaUrls.length === 0) {
+      addToast('error', 'Mídias necessárias', 'Adicione ao menos uma imagem ou vídeo para o carrossel.');
+      return;
+    }
+
+    if (contentType === 'static' && mediaUrls.length === 0 && !cleanDriveUrl) {
       addToast('error', 'Mídia necessária', 'Suba ao menos uma imagem ou vídeo para o conteúdo.');
       return;
     }
 
     try {
-      setIsUploading(true);
-      // Pre-chunk any large media URLs so they persist seamlessly without exceeding 1MB
+      setIsSaving(true);
+      // Pre-chunk any large media URLs so they persist in IndexedDB seamlessly without blocking
       const finalMediaUrls = await Promise.all(
         mediaUrls.map(async (url) => {
           if (url && (url.startsWith('data:video') || url.length > 250 * 1024)) {
@@ -317,19 +355,31 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
         })
       );
 
+      let effectiveMediaType: MediaType = mediaType;
+      if (contentType === 'carousel') {
+        effectiveMediaType = 'carousel';
+      } else if (contentType === 'reel') {
+        effectiveMediaType = cleanDriveUrl ? 'drive_video' : 'video';
+      } else if (contentType === 'story') {
+        effectiveMediaType = cleanDriveUrl ? 'drive_video' : (finalMediaUrls.some(u => isVideoUrl(u)) ? 'video' : 'image');
+      } else {
+        effectiveMediaType = cleanDriveUrl ? 'drive_video' : (finalMediaUrls.some(u => isVideoUrl(u)) ? 'video' : 'image');
+      }
+
       const payload: any = {
         projectId: finalProjectId,
         clientId: targetClientId,
-        title,
+        title: trimmedTitle,
         contentType,
-        mediaType,
+        mediaType: effectiveMediaType,
         mediaUrls: finalMediaUrls,
         caption,
-        scheduledDate,
+        scheduledDate: scheduledDate || new Date().toISOString().slice(0, 16),
         platforms: ['instagram_feed'],
       };
-      if (mediaType === 'drive_video' && driveVideoUrl) {
-        payload.driveVideoUrl = driveVideoUrl;
+
+      if (cleanDriveUrl) {
+        payload.driveVideoUrl = cleanDriveUrl;
       }
 
       if (postToEdit) {
@@ -342,10 +392,10 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
         });
         addToast('success', 'Publicação criada', 'Conteúdo publicado e pronto para aprovação.');
       }
-      setIsUploading(false);
+      setIsSaving(false);
       onClose();
     } catch (err: any) {
-      setIsUploading(false);
+      setIsSaving(false);
       console.error('Erro ao salvar publicação:', err);
       addToast('error', 'Erro ao salvar', 'Houve um problema ao salvar. Verifique os dados e tente novamente.');
     }
@@ -394,7 +444,7 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
         {/* Content body split: Form (left) + Live Mockup Preview (right) */}
         <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
           {/* Left: Input Form */}
-          <form id="post-form" onSubmit={handleSubmit} className="lg:col-span-7 p-6 space-y-5">
+          <form id="post-form" onSubmit={handleSave} className="lg:col-span-7 p-6 space-y-5">
             {/* Client and Folder Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Client Selector */}
@@ -571,13 +621,16 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                   >
                     <Upload className="w-5 h-5 mb-1" />
                     <span className="text-[10px] font-semibold">
-                      {isUploading ? 'Otimizando...' : (contentType === 'carousel' || contentType === 'story' ? 'Adicionar Mídias' : 'Subir Arquivo')}
+                      {isUploading ? 'Processando...' : (contentType === 'carousel' || contentType === 'story' ? 'Subir Arquivos' : 'Subir Arquivo')}
                     </span>
                   </button>
 
                   {/* Reorderable Media Items List */}
                   {mediaUrls.map((url, idx) => {
+                    const isDrive = isDriveVideoUrl(url);
                     const isVideo = isVideoUrl(url);
+                    const driveId = isDrive ? extractDriveFileId(url) : null;
+
                     return (
                       <div
                         key={idx}
@@ -585,24 +638,42 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                         onDragStart={e => handleDragStart(e, idx)}
                         onDragOver={handleDragOver}
                         onDrop={e => handleDrop(e, idx)}
-                        className={`relative h-24 w-24 rounded-xl border overflow-hidden group shrink-0 bg-slate-100 transition-all cursor-grab active:cursor-grabbing select-none ${
+                        className={`relative h-24 w-24 rounded-xl border overflow-hidden group shrink-0 bg-slate-900 transition-all cursor-grab active:cursor-grabbing select-none ${
                           draggedIndex === idx
                             ? 'border-black ring-2 ring-black opacity-50 scale-95'
                             : 'border-slate-200 hover:border-slate-400 shadow-2xs'
                         }`}
                         title="Arraste para o lado para alterar a ordem"
                       >
-                        {isVideo ? (
+                        {isDrive ? (
+                          <div className="w-full h-full relative flex items-center justify-center bg-slate-950">
+                            <img
+                              src={`https://drive.google.com/thumbnail?id=${driveId}&sz=w400`}
+                              alt={`Slide ${idx + 1}`}
+                              className="w-full h-full object-cover pointer-events-none"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                              <Video className="w-6 h-6 text-amber-400" />
+                            </div>
+                          </div>
+                        ) : isVideo ? (
                           <video src={url} className="w-full h-full object-cover pointer-events-none" />
                         ) : (
                           <img src={url} alt={`Mídia ${idx + 1}`} className="w-full h-full object-cover pointer-events-none" />
                         )}
 
                         {/* Drag Handle Overlay */}
-                        <div className="absolute top-1 left-1 px-1 py-0.5 rounded bg-black/60 text-white flex items-center gap-0.5 text-[9px] font-mono pointer-events-none">
+                        <div className="absolute top-1 left-1 px-1 py-0.5 rounded bg-black/70 text-white flex items-center gap-0.5 text-[9px] font-mono pointer-events-none">
                           <GripHorizontal className="w-2.5 h-2.5" />
                           <span>#{idx + 1}</span>
-                          {isVideo && <span className="ml-0.5 text-[8px] bg-red-600 px-1 rounded">VÍDEO</span>}
+                          {isDrive ? (
+                            <span className="ml-0.5 text-[8px] bg-amber-500 text-black font-bold px-1 rounded">DRIVE</span>
+                          ) : isVideo ? (
+                            <span className="ml-0.5 text-[8px] bg-red-600 px-1 rounded">VÍDEO</span>
+                          ) : null}
                         </div>
 
                         {/* Remove button */}
@@ -651,6 +722,54 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                     );
                   })}
                 </div>
+
+                {/* Option to insert Google Drive video slide */}
+                {(contentType === 'carousel' || contentType === 'story') && (
+                  <div className="pt-2">
+                    {!showDriveSlideForm ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowDriveSlideForm(true)}
+                        className="text-xs font-semibold text-slate-700 hover:text-black flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-dashed border-slate-300 hover:border-black bg-white hover:bg-slate-50 transition-colors cursor-pointer"
+                      >
+                        <Video className="w-3.5 h-3.5 text-amber-500" />
+                        <span>+ Inserir Lâmina de Vídeo do Google Drive</span>
+                      </button>
+                    ) : (
+                      <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl space-y-2">
+                        <label className="block text-xs font-semibold text-zinc-900">
+                          Link do Google Drive do vídeo para este slide:
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={driveSlideInput}
+                            onChange={e => setDriveSlideInput(e.target.value)}
+                            placeholder="https://drive.google.com/file/d/..."
+                            className="flex-1 px-3 py-1.5 text-xs border border-zinc-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddDriveSlide}
+                            className="px-3 py-1.5 bg-black text-white rounded-lg text-xs font-semibold hover:bg-zinc-800 cursor-pointer"
+                          >
+                            Adicionar Slide
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowDriveSlideForm(false);
+                              setDriveSlideInput('');
+                            }}
+                            className="px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-200 cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {contentType === 'carousel' && mediaUrls.length > 1 && (
                   <p className="text-[11px] text-slate-400">
@@ -745,11 +864,10 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
               }`}>
                 {mediaType === 'drive_video' ? (
                   driveVideoUrl ? (
-                    <iframe
-                      src={getDriveEmbedUrl(driveVideoUrl)}
-                      className="w-full h-full border-0"
-                      allow="autoplay"
-                      title="Prévia do Vídeo Google Drive"
+                    <DriveVideoPlayer
+                      url={driveVideoUrl}
+                      title={title}
+                      className="w-full h-full"
                     />
                   ) : (
                     <div className="p-4 text-center text-slate-400">
@@ -761,6 +879,15 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                   <div className="relative w-full h-full flex items-center justify-center">
                     {(() => {
                       const currentMedia = mediaUrls[activeSlide] || mediaUrls[0];
+                      if (isDriveVideoUrl(currentMedia)) {
+                        return (
+                          <DriveVideoPlayer
+                            url={currentMedia}
+                            title={`${title} - Slide ${activeSlide + 1}`}
+                            className="w-full h-full"
+                          />
+                        );
+                      }
                       const isVideo = isVideoUrl(currentMedia);
                       return isVideo ? (
                         <video
@@ -874,12 +1001,14 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
             Cancelar
           </button>
           <button
-            type="submit"
-            form="post-form"
+            type="button"
+            disabled={isSaving || isUploading}
+            onClick={() => handleSave()}
             style={{ backgroundColor: agencyConfig?.primaryColor || '#000000' }}
-            className="px-5 py-2 text-xs font-semibold text-white rounded-lg transition-opacity hover:opacity-90 shadow-xs cursor-pointer"
+            className="px-5 py-2 text-xs font-semibold text-white rounded-lg transition-opacity hover:opacity-90 shadow-xs cursor-pointer flex items-center gap-2 disabled:opacity-50"
           >
-            {postToEdit ? 'Salvar Alterações' : 'Publicar para Aprovação'}
+            {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            <span>{isSaving ? 'Salvando alterações...' : postToEdit ? 'Salvar Alterações' : 'Publicar para Aprovação'}</span>
           </button>
         </div>
       </div>

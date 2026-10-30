@@ -997,14 +997,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updatePost = (id: string, updates: Partial<PostContent>) => {
     const prevPost = posts.find(p => p.id === id);
-    setPosts(prev => prev.map(p => {
-      if (p.id === id) {
-        const updated = { ...p, ...updates };
-        firestoreSync.savePost(updated);
-        return updated;
+    setPosts(prev => {
+      const exists = prev.some(p => p.id === id);
+      if (exists) {
+        return prev.map(p => {
+          if (p.id === id) {
+            const updated = { ...p, ...updates };
+            firestoreSync.savePost(updated);
+            return updated;
+          }
+          return p;
+        });
+      } else {
+        const fallback = { id, ...updates } as PostContent;
+        firestoreSync.savePost(fallback);
+        return [fallback, ...prev];
       }
-      return p;
-    }));
+    });
 
     if (prevPost && prevPost.status === 'changes_requested' && (updates.status === 'pending_approval' || (updates.mediaUrls && updates.mediaUrls !== prevPost.mediaUrls))) {
       addNotification({
