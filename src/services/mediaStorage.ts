@@ -7,6 +7,7 @@ import {
   where 
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { serverSync } from './serverSync';
 
 const CHUNK_SIZE = 600 * 1024; // 600 KB per chunk (well within Firestore's 1MB limit)
 const DB_NAME = 'aprovaflow_media_store_v1';
@@ -112,31 +113,43 @@ export const mediaStorage = {
     });
   },
 
-  // Save large media (video or big file) to IndexedDB locally and cache in memory
+  // Save large media (video or big file) to Server disk (/data/media/) and cache locally
   async storeMedia(dataUrl: string, mimeType: string = 'video/mp4'): Promise<string> {
-    // If it's already a chunkref or small data url (< 250KB), return as is
-    if (this.isChunkRef(dataUrl) || dataUrl.length < 250 * 1024) {
+    // If it's already a hosted URL or small data url (< 150KB), return as is
+    if (dataUrl.startsWith('/api/media/') || dataUrl.startsWith('http://') || dataUrl.startsWith('https://')) {
+      return dataUrl;
+    }
+
+    // Attempt direct server upload so both client phone and agency share the exact same media
+    try {
+      const serverUrl = await serverSync.uploadMedia(dataUrl, mimeType);
+      if (serverUrl && serverUrl.startsWith('/api/media/')) {
+        resolvedUrlCache.set(serverUrl, serverUrl);
+        return serverUrl;
+      }
+    } catch (err) {
+      console.warn('Erro ao enviar mídia ao servidor, aplicando fallback local:', err);
+    }
+
+    if (this.isChunkRef(dataUrl) || dataUrl.length < 200 * 1024) {
       return dataUrl;
     }
 
     const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const chunkRef = mimeType.startsWith('video') ? `video_chunkref:${mediaId}` : `chunkref:${mediaId}`;
 
-    // 1. Immediately cache in memory and local IndexedDB (instant, reliable, zero quota limits)
+    // Cache locally in IndexedDB as resilience fallback
     resolvedUrlCache.set(chunkRef, dataUrl);
     try {
       await saveToIndexedDB(mediaId, dataUrl);
-      console.log(`✅ Mídia pesada armazenada com sucesso no IndexedDB local: ${mediaId}`);
-    } catch (err) {
-      console.warn('Erro ao salvar no IndexedDB, mantido em memória:', err);
-    }
+    } catch {}
 
-    // Return the reference immediately so saving is instantaneous
     return chunkRef;
   },
 
   // Resolve a chunkref to a playable/displayable URL
   async resolveMedia(url: string): Promise<string> {
+    if (!url) return '';
     if (!this.isChunkRef(url)) {
       return url;
     }
@@ -152,6 +165,9 @@ export const mediaStorage = {
     const cachedData = await getFromIndexedDB(mediaId);
     if (cachedData) {
       resolvedUrlCache.set(url, cachedData);
+      // Attempt to upgrade to server URL in background
+      serverSync.uploadMedia(cachedData, url.startsWith('video') ? 'video/mp4' : 'image/jpeg')
+        .catch(() => {});
       return cachedData;
     }
 

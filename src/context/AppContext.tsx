@@ -24,6 +24,7 @@ import {
 import { playNotificationSound, sendBrowserPushNotification } from '../utils/notifications';
 import { applyThemeToDocument } from '../utils/themeHelper';
 import { firestoreSync } from '../services/firestoreSync';
+import { serverSync } from '../services/serverSync';
 
 interface ToastMessage {
   id: string;
@@ -371,7 +372,84 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setPortalMode(modeParam === 'agency' ? 'agency' : 'client');
     }
 
-    // Seed Firestore if empty and establish real-time sync
+    // 1. Initial immediate sync with server storage (/api/sync)
+    serverSync.fetchDatabase().then(serverDb => {
+      if (serverDb) {
+        if (serverDb.clients && serverDb.clients.length > 0) setClients(serverDb.clients);
+        if (serverDb.projects && serverDb.projects.length > 0) setProjects(serverDb.projects);
+        if (serverDb.users && serverDb.users.length > 0) setUsers(serverDb.users);
+        if (serverDb.posts && serverDb.posts.length > 0) {
+          const cleanServerPosts = serverDb.posts.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
+          setPosts(prev => {
+            const serverMap = new Map(cleanServerPosts.map(p => [p.id, p]));
+            const localMap = new Map(prev.map(p => [p.id, p]));
+
+            const merged = cleanServerPosts.map(srvPost => {
+              const loc = localMap.get(srvPost.id);
+              if (!loc) return srvPost;
+              const locTime = new Date(loc.updatedAt || loc.createdAt || 0).getTime();
+              const srvTime = new Date(srvPost.updatedAt || srvPost.createdAt || 0).getTime();
+              const locMedia = loc.mediaUrls?.length || 0;
+              const srvMedia = srvPost.mediaUrls?.length || 0;
+              if (locMedia > srvMedia || locTime > srvTime) return loc;
+              return srvPost;
+            });
+
+            const pending = prev.filter(p => !serverMap.has(p.id) && !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
+            return [...merged, ...pending];
+          });
+        }
+      }
+    });
+
+    // 2. Periodic sync timer with server (/api/posts) every 3 seconds
+    const syncInterval = setInterval(async () => {
+      try {
+        const srvPosts = await serverSync.fetchPosts();
+        if (srvPosts && srvPosts.length > 0) {
+          const clean = srvPosts.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
+          setPosts(prev => {
+            const localMap = new Map(prev.map(p => [p.id, p]));
+            let changed = false;
+
+            const updatedList = clean.map(srvPost => {
+              const loc = localMap.get(srvPost.id);
+              if (!loc) {
+                changed = true;
+                return srvPost;
+              }
+              const locTime = new Date(loc.updatedAt || loc.createdAt || 0).getTime();
+              const srvTime = new Date(srvPost.updatedAt || srvPost.createdAt || 0).getTime();
+              const locMedia = loc.mediaUrls?.length || 0;
+              const srvMedia = srvPost.mediaUrls?.length || 0;
+
+              // If server has more media or newer update, take server!
+              if (srvMedia > locMedia || srvTime > locTime) {
+                changed = true;
+                return srvPost;
+              }
+              // If local has more media, push to server
+              if (locMedia > srvMedia) {
+                serverSync.savePost(loc);
+              }
+              return loc;
+            });
+
+            const pending = prev.filter(p => !clean.some(sp => sp.id === p.id));
+            if (pending.length > 0) {
+              pending.forEach(p => serverSync.savePost(p));
+            }
+
+            if (!changed && updatedList.length === prev.length) {
+              return prev;
+            }
+            return [...updatedList, ...pending];
+          });
+        }
+      } catch {}
+    }, 3000);
+
+    // 3. Seed Firestore if empty and establish real-time sync
     firestoreSync.seedInitialIfEmpty(
       clients,
       projects,
@@ -444,6 +522,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     return () => {
+      clearInterval(syncInterval);
       unsubClients();
       unsubProjects();
       unsubPosts();
@@ -979,17 +1058,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       id: `post-${Date.now()}-${uniqueSuffix}`,
       comments: [],
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       createdByUserId: currentUser?.id,
       createdByUserName: currentUser?.name,
     };
     setPosts(prev => [newPost, ...prev]);
     
-    // Save to Firestore with explicit verification
-    firestoreSync.savePost(newPost).then(res => {
-      if (!res.success) {
-        addToast('error', 'Atenção ao Sincronizar', `Erro ao gravar no banco: ${res.error || 'Verifique sua conexão'}.`);
-      }
-    });
+    // Save to Server disk immediately so client portal instantly sees it
+    serverSync.savePost(newPost);
+
+    // Also mirror to Firestore with silent fallback
+    firestoreSync.savePost(newPost).catch(() => {});
 
     // Send notification
     const client = clients.find(c => c.id === newPost.clientId);
@@ -1025,14 +1104,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return prev.map(p => {
           if (p.id === id) {
             const updated = { ...p, ...updates, updatedAt: nowIso };
-            firestoreSync.savePost(updated);
+            serverSync.savePost(updated);
+            firestoreSync.savePost(updated).catch(() => {});
             return updated;
           }
           return p;
         });
       } else {
         const fallback = { id, ...updates, updatedAt: nowIso } as PostContent;
-        firestoreSync.savePost(fallback);
+        serverSync.savePost(fallback);
+        firestoreSync.savePost(fallback).catch(() => {});
         return [fallback, ...prev];
       }
     });
@@ -1058,7 +1139,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const deletePost = (id: string) => {
     const post = posts.find(p => p.id === id);
     setPosts(prev => prev.filter(p => p.id !== id));
-    firestoreSync.deletePost(id);
+    serverSync.deletePost(id);
+    firestoreSync.deletePost(id).catch(() => {});
 
     // Automatically remove notifications belonging to this post
     const notifsToDelete = notifications.filter(n => n.postId === id || (post && n.message.includes(post.title)));
@@ -1083,10 +1165,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ...p,
           status: 'approved',
           approvedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           approvedBy: approver,
           requestedChangesNote: undefined,
         };
-        firestoreSync.savePost(updated);
+        serverSync.savePost(updated);
+        firestoreSync.savePost(updated).catch(() => {});
         return updated;
       }
       return p;
@@ -1135,10 +1219,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const updated: PostContent = {
           ...p,
           status: 'changes_requested',
+          updatedAt: new Date().toISOString(),
           requestedChangesNote: note,
           comments: [...p.comments, newComment],
         };
-        firestoreSync.savePost(updated);
+        serverSync.savePost(updated);
+        firestoreSync.savePost(updated).catch(() => {});
         return updated;
       }
       return p;
@@ -1181,9 +1267,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (p.id === postId) {
         const updated: PostContent = {
           ...p,
+          updatedAt: new Date().toISOString(),
           comments: [...p.comments, newComment],
         };
-        firestoreSync.savePost(updated);
+        serverSync.savePost(updated);
+        firestoreSync.savePost(updated).catch(() => {});
         return updated;
       }
       return p;

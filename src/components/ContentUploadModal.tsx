@@ -5,6 +5,7 @@ import { extractDriveFileId, getDriveEmbedUrl, isValidDriveUrl } from '../utils/
 import { getPostContentType, isVideoUrl, isDriveVideoUrl } from '../utils/contentTypeHelper';
 import { compressImage } from '../utils/imageCompressor';
 import { mediaStorage } from '../services/mediaStorage';
+import { serverSync } from '../services/serverSync';
 import { DriveVideoPlayer } from './DriveVideoPlayer';
 import { 
   PlusCircle, 
@@ -167,9 +168,9 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
           const compressed = await compressImage(file, 850, 1100, 0.65);
           newUrls.push(compressed);
         } else if (file.type.startsWith('video/')) {
-          // Allow video files directly up to 50MB
-          if (file.size > 50 * 1024 * 1024) {
-            addToast('error', 'Arquivo Muito Grande', 'O tamanho máximo para upload direto de vídeo é 50MB. Para vídeos maiores, use o link do Google Drive.');
+          // Allow video files directly up to 80MB
+          if (file.size > 80 * 1024 * 1024) {
+            addToast('error', 'Arquivo Muito Grande', 'O tamanho máximo para upload direto de vídeo é 80MB. Para vídeos maiores, use o link do Google Drive.');
             continue;
           }
           const base64 = await new Promise<string>((resolve, reject) => {
@@ -178,7 +179,18 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
             reader.onerror = reject;
             reader.readAsDataURL(file);
           });
-          newUrls.push(base64);
+          
+          // Stream directly to server disk
+          try {
+            const serverUrl = await serverSync.uploadMedia(base64, file.type, file.name);
+            if (serverUrl && serverUrl.startsWith('/api/media/')) {
+              newUrls.push(serverUrl);
+            } else {
+              newUrls.push(base64);
+            }
+          } catch {
+            newUrls.push(base64);
+          }
         } else {
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();

@@ -86,10 +86,12 @@ export function isDriveVideoUrl(url?: string): boolean {
 
 export function isVideoUrl(url?: string): boolean {
   if (!url) return false;
+  const lower = url.toLowerCase();
   return (
-    url.startsWith('data:video/') ||
-    url.startsWith('video_chunkref:') ||
-    url.startsWith('blob:') ||
+    lower.startsWith('data:video/') ||
+    lower.startsWith('video_chunkref:') ||
+    lower.startsWith('blob:') ||
+    (lower.startsWith('/api/media/') && (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.webm') || (!lower.endsWith('.jpg') && !lower.endsWith('.jpeg') && !lower.endsWith('.png') && !lower.endsWith('.webp')))) ||
     isDriveVideoUrl(url) ||
     /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(url)
   );
