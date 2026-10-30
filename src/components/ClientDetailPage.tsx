@@ -7,6 +7,7 @@ import { CalendarView } from './CalendarView';
 import { ProjectFolderModal } from './ProjectFolderModal';
 import { ClientManagerModal } from './ClientManagerModal';
 import { PostChatModal } from './PostChatModal';
+import { GeneralClientChatModal } from './GeneralClientChatModal';
 import { 
   ArrowLeft, 
   Folder, 
@@ -28,7 +29,8 @@ import {
   Sparkles,
   KanbanSquare,
   Filter,
-  MessageCircle
+  MessageCircle,
+  MessageSquare
 } from 'lucide-react';
 import { buildWhatsAppUrl, createNewContentWhatsAppMessage } from '../utils/whatsapp';
 
@@ -57,16 +59,19 @@ export const ClientDetailPage: React.FC = () => {
   const [chatPost, setChatPost] = useState<PostContent | null>(null);
   const [detailPost, setDetailPost] = useState<PostContent | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [clientChatOpen, setClientChatOpen] = useState(false);
 
   const client = selectedClient || clients[0];
   const clientProjects = projects.filter(p => p.clientId === client?.id);
 
   // Active project folder or all client posts
-  const activeProject = clientProjects.find(p => p.id === selectedProjectId) || clientProjects[0];
+  const isViewingAll = selectedProjectId === 'all';
+  const activeProject = isViewingAll ? null : (clientProjects.find(p => p.id === selectedProjectId) || clientProjects[0]);
 
   const clientPosts = posts.filter(p => {
+    if (p.clientId !== client?.id) return false;
     if (activeProject) return p.projectId === activeProject.id;
-    return p.clientId === client?.id;
+    return true;
   });
 
   // Kanban status groups (without month filter as requested)
@@ -183,6 +188,14 @@ export const ClientDetailPage: React.FC = () => {
         {/* Client quick actions */}
         <div className="flex flex-wrap items-center gap-2 relative z-10">
           <button
+            onClick={() => setClientChatOpen(true)}
+            className="px-3.5 py-2 text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+            <span>Chat com o Cliente</span>
+          </button>
+
+          <button
             onClick={() => setEditingClientOpen(true)}
             className="px-3.5 py-2 text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/15 rounded-xl transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
@@ -221,6 +234,28 @@ export const ClientDetailPage: React.FC = () => {
 
         {/* Compact Projects Grid / Pills */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {clientProjects.length > 1 && (
+            <div
+              onClick={() => setSelectedProjectId('all')}
+              className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between text-xs ${
+                isViewingAll
+                  ? 'border-brand bg-brand-light ring-1 ring-brand shadow-2xs font-bold'
+                  : 'border-slate-200 bg-slate-50/70 hover:bg-slate-100/70'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <span className="font-bold text-slate-900 text-xs truncate flex items-center gap-1.5">
+                  <Folder className={`w-3.5 h-3.5 ${isViewingAll ? 'text-black' : 'text-slate-400'}`} />
+                  <span className="truncate">Todos os Projetos</span>
+                </span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white border border-slate-200 shrink-0 font-bold">
+                  {posts.filter(p => p.clientId === client?.id).length}
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400">Ver todas as demandas</span>
+            </div>
+          )}
+
           {clientProjects.map(proj => {
             const isSelected = activeProject?.id === proj.id;
             const projPosts = posts.filter(p => p.projectId === proj.id);
@@ -354,7 +389,8 @@ export const ClientDetailPage: React.FC = () => {
 
             <button
               onClick={() => {
-                openNewPostModal(client?.id, activeProject?.id);
+                const targetProjId = activeProject?.id || clientProjects[0]?.id;
+                openNewPostModal(client?.id, targetProjId);
               }}
               style={{ backgroundColor: agencyConfig?.primaryColor || '#000000' }}
               className="px-4 py-2.5 text-xs font-bold text-white rounded-xl transition-all shadow-md hover:opacity-90 flex items-center gap-2 cursor-pointer active:scale-95"
@@ -531,6 +567,16 @@ export const ClientDetailPage: React.FC = () => {
         post={chatPost}
         currentRole="agency"
       />
+
+      {client && (
+        <GeneralClientChatModal
+          isOpen={clientChatOpen}
+          onClose={() => setClientChatOpen(false)}
+          client={client}
+          project={activeProject || undefined}
+          role="agency"
+        />
+      )}
     </div>
   );
 };

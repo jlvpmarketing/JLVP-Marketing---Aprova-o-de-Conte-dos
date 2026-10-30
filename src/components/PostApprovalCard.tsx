@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { PostContent } from '../types';
-import { getDriveEmbedUrl } from '../utils/drivePlayer';
+import { getDriveEmbedUrl, extractDriveFileId } from '../utils/drivePlayer';
 import { getContentTypeInfo, isVideoUrl } from '../utils/contentTypeHelper';
+import { useResolvedMedia } from '../hooks/useResolvedMedia';
 import { 
   CheckCircle2, 
   AlertTriangle, 
@@ -18,7 +19,8 @@ import {
   Check, 
   ChevronLeft,
   ChevronRight,
-  Maximize2
+  Maximize2,
+  Play
 } from 'lucide-react';
 
 interface PostApprovalCardProps {
@@ -41,6 +43,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
   onOpenDetail,
 }) => {
   const { approvePost, deletePost, agencyConfig, clients, projects, addToast } = useApp();
+  const { resolvedUrls } = useResolvedMedia(post.mediaUrls);
   const [activeSlide, setActiveSlide] = useState(0);
   const [approving, setApproving] = useState(false);
 
@@ -140,16 +143,19 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
       }`}>
         {post.mediaType === 'drive_video' ? (
           post.driveVideoUrl ? (
-            <div className="w-full h-full relative">
-              <iframe
-                src={getDriveEmbedUrl(post.driveVideoUrl)}
-                className="w-full h-full border-0 pointer-events-none"
-                title={`Vídeo Drive - ${post.title}`}
+            <div className="w-full h-full relative bg-slate-950 flex items-center justify-center overflow-hidden">
+              <img
+                src={`https://lh3.googleusercontent.com/d/${extractDriveFileId(post.driveVideoUrl)}`}
+                alt={post.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
               />
-              <div className="absolute inset-0 bg-slate-950/20 group-hover:bg-transparent transition-colors flex items-center justify-center">
-                <div className="bg-black/70 text-white text-xs font-medium px-3 py-1.5 rounded-full backdrop-blur-xs flex items-center gap-1.5 shadow-lg">
-                  <Video className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Vídeo do Drive (Clique para Ver)</span>
+              <div className="absolute inset-0 bg-slate-950/35 group-hover:bg-slate-950/15 transition-colors flex items-center justify-center">
+                <div className="bg-black/80 text-white text-xs font-semibold px-4 py-2 rounded-full backdrop-blur-md flex items-center gap-2 shadow-xl border border-white/20 group-hover:scale-105 transition-transform">
+                  <Play className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  <span>Ver Vídeo</span>
                 </div>
               </div>
             </div>
@@ -159,11 +165,11 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
               <p className="text-xs">Link do Drive não inserido</p>
             </div>
           )
-        ) : post.mediaUrls && post.mediaUrls.length > 0 ? (
+        ) : resolvedUrls && resolvedUrls.length > 0 ? (
           <div className="relative w-full h-full bg-black flex items-center justify-center">
-            {isVideoUrl(post.mediaUrls[activeSlide] || post.mediaUrls[0]) ? (
+            {isVideoUrl(resolvedUrls[activeSlide] || resolvedUrls[0]) ? (
               <video
-                src={post.mediaUrls[activeSlide] || post.mediaUrls[0]}
+                src={resolvedUrls[activeSlide] || resolvedUrls[0]}
                 className="w-full h-full object-cover"
                 muted
                 playsInline
@@ -172,14 +178,14 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
               />
             ) : (
               <img
-                src={post.mediaUrls[activeSlide] || post.mediaUrls[0]}
+                src={resolvedUrls[activeSlide] || resolvedUrls[0]}
                 alt={post.title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />
             )}
 
             {/* Carousel navigation buttons */}
-            {post.mediaUrls.length > 1 && (
+            {resolvedUrls.length > 1 && (
               <>
                 <button
                   type="button"
@@ -196,16 +202,16 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
                   type="button"
                   onClick={e => {
                     e.stopPropagation();
-                    setActiveSlide(prev => Math.min(post.mediaUrls.length - 1, prev + 1));
+                    setActiveSlide(prev => Math.min(resolvedUrls.length - 1, prev + 1));
                   }}
-                  disabled={activeSlide === post.mediaUrls.length - 1}
+                  disabled={activeSlide === resolvedUrls.length - 1}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/90 disabled:opacity-20 transition-opacity"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
                 <div className="absolute bottom-2.5 left-0 right-0 flex justify-center gap-1 pointer-events-none">
-                  {post.mediaUrls.map((_, i) => (
+                  {resolvedUrls.map((_, i) => (
                     <span
                       key={i}
                       className={`h-1.5 rounded-full transition-all ${
@@ -217,7 +223,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
 
                 <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-mono bg-black/70 text-white backdrop-blur-xs flex items-center gap-1">
                   <Layers className="w-3 h-3" />
-                  {activeSlide + 1}/{post.mediaUrls.length}
+                  {activeSlide + 1}/{resolvedUrls.length}
                 </span>
               </>
             )}

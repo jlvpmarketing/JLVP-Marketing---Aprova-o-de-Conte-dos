@@ -194,18 +194,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [posts, setPosts] = useState<PostContent[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.POSTS);
-      return saved ? JSON.parse(saved) : INITIAL_POSTS;
+      if (saved) {
+        const parsed: PostContent[] = JSON.parse(saved);
+        return parsed.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
+      }
+      return [];
     } catch {
-      return INITIAL_POSTS;
+      return [];
     }
   });
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.NOTIFS);
-      return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+      if (saved) {
+        const parsed: NotificationItem[] = JSON.parse(saved);
+        return parsed.filter(n => !['notif-1', 'notif-2', 'notif-3'].includes(n.id));
+      }
+      return [];
     } catch {
-      return INITIAL_NOTIFICATIONS;
+      return [];
     }
   });
 
@@ -387,7 +395,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const unsubPosts = firestoreSync.subscribeToPosts((remotePosts) => {
       if (remotePosts) {
-        setPosts(remotePosts);
+        const cleanRemote = remotePosts.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
+        setPosts(prev => {
+          const remoteMap = new Map(cleanRemote.map(p => [p.id, p]));
+          // Preserve any local posts created in the last 120 seconds that might still be syncing
+          const pendingSync = prev.filter(p => {
+            if (remoteMap.has(p.id)) return false;
+            if (['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id)) return false;
+            const age = Date.now() - new Date(p.createdAt || 0).getTime();
+            return age < 120000;
+          });
+          return [...cleanRemote, ...pendingSync];
+        });
       }
     });
 
@@ -411,35 +430,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       unsubUsers();
     };
   }, []);
-
-  // Automatic cleanup of orphaned posts, projects and notifications from deleted clients
-  useEffect(() => {
-    if (clients.length === 0) return;
-    const validClientIds = new Set(clients.map(c => c.id));
-    const validProjectIds = new Set(projects.map(p => p.id));
-
-    // Remove any post belonging to a deleted client or deleted project
-    setPosts(prev => {
-      const filtered = prev.filter(p => validClientIds.has(p.clientId) && (!p.projectId || validProjectIds.has(p.projectId)));
-      if (filtered.length !== prev.length) {
-        const removed = prev.filter(p => !validClientIds.has(p.clientId) || (p.projectId && !validProjectIds.has(p.projectId)));
-        removed.forEach(p => firestoreSync.deletePost(p.id));
-        return filtered;
-      }
-      return prev;
-    });
-
-    // Remove any notification for deleted clients or deleted posts
-    setNotifications(prev => {
-      const filtered = prev.filter(n => !n.clientId || validClientIds.has(n.clientId));
-      if (filtered.length !== prev.length) {
-        const removed = prev.filter(n => n.clientId && !validClientIds.has(n.clientId));
-        removed.forEach(n => firestoreSync.deleteNotification(n.id));
-        return filtered;
-      }
-      return prev;
-    });
-  }, [clients, projects]);
 
   // Update CSS Variables and system-wide theme when primary color changes
   useEffect(() => {
@@ -962,16 +952,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const addPost = (postData: Omit<PostContent, 'id' | 'createdAt' | 'comments'>): PostContent => {
+    const uniqueSuffix = Math.random().toString(36).substring(2, 8);
     const newPost: PostContent = {
       ...postData,
-      id: `post-${Date.now()}`,
+      id: `post-${Date.now()}-${uniqueSuffix}`,
       comments: [],
       createdAt: new Date().toISOString(),
       createdByUserId: currentUser?.id,
       createdByUserName: currentUser?.name,
     };
     setPosts(prev => [newPost, ...prev]);
-    firestoreSync.savePost(newPost);
+    
+    // Save to Firestore with explicit verification
+    firestoreSync.savePost(newPost).then(res => {
+      if (!res.success) {
+        addToast('error', 'Atenção ao Sincronizar', `Erro ao gravar no banco: ${res.error || 'Verifique sua conexão'}.`);
+      }
+    });
 
     // Send notification
     const client = clients.find(c => c.id === newPost.clientId);

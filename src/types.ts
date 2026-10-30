@@ -60,6 +60,17 @@ export interface CommentItem {
   avatar?: string;
 }
 
+export interface GeneralChatMessage {
+  id: string;
+  clientId: string;
+  projectId?: string;
+  authorRole: 'agency' | 'client';
+  authorName: string;
+  text: string;
+  timestamp: string;
+  avatar?: string;
+}
+
 export interface SupportDocument {
   id: string;
   name: string;

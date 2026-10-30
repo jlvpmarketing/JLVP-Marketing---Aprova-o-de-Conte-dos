@@ -79,6 +79,8 @@ export function isVideoUrl(url?: string): boolean {
   if (!url) return false;
   return (
     url.startsWith('data:video/') ||
+    url.startsWith('video_chunkref:') ||
+    url.startsWith('blob:') ||
     /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(url)
   );
 }

@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { PostContent, AgencyUser } from '../types';
 import { getDriveEmbedUrl } from '../utils/drivePlayer';
+import { DriveVideoPlayer } from './DriveVideoPlayer';
 import { getContentTypeInfo, isVideoUrl } from '../utils/contentTypeHelper';
+import { useResolvedMedia } from '../hooks/useResolvedMedia';
 import { 
   X, 
   CheckCircle2, 
@@ -49,6 +51,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
     addToast 
   } = useApp();
 
+  const { resolvedUrls } = useResolvedMedia(post?.mediaUrls || []);
   const [activeSlide, setActiveSlide] = useState(0);
   const [newComment, setNewComment] = useState('');
   const [approving, setApproving] = useState(false);
@@ -181,16 +184,11 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                 {post.mediaType === 'drive_video' ? (
                   post.driveVideoUrl ? (
                     <div className="w-full h-full relative">
-                      <iframe
-                        src={getDriveEmbedUrl(post.driveVideoUrl)}
-                        className="w-full h-full border-0"
-                        allow="autoplay; encrypted-media; fullscreen"
-                        allowFullScreen
-                        title={`Player Google Drive - ${post.title}`}
+                      <DriveVideoPlayer
+                        url={post.driveVideoUrl}
+                        title={post.title}
+                        aspectClass={contentInfo.aspectClass}
                       />
-                      <div className="absolute top-3 right-3 bg-black/75 text-white text-[11px] font-medium px-2.5 py-1 rounded-full backdrop-blur-xs flex items-center gap-1.5 pointer-events-none">
-                        <Video className="w-3.5 h-3.5 text-indigo-400" /> Google Drive
-                      </div>
                     </div>
                   ) : (
                     <div className="p-10 text-center text-slate-400">
@@ -198,25 +196,25 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                       <p className="text-sm">Link de vídeo não disponível</p>
                     </div>
                   )
-                ) : post.mediaUrls && post.mediaUrls.length > 0 ? (
+                ) : resolvedUrls && resolvedUrls.length > 0 ? (
                   <div className="relative w-full h-full flex items-center justify-center bg-black">
-                    {isVideoUrl(post.mediaUrls[activeSlide] || post.mediaUrls[0]) ? (
+                    {isVideoUrl(resolvedUrls[activeSlide] || resolvedUrls[0]) ? (
                       <video
-                        src={post.mediaUrls[activeSlide] || post.mediaUrls[0]}
+                        src={resolvedUrls[activeSlide] || resolvedUrls[0]}
                         controls
                         playsInline
                         className="w-full h-full object-contain"
                       />
                     ) : (
                       <img
-                        src={post.mediaUrls[activeSlide] || post.mediaUrls[0]}
+                        src={resolvedUrls[activeSlide] || resolvedUrls[0]}
                         alt={post.title}
                         className="w-full h-full object-cover"
                       />
                     )}
 
                     {/* Carousel navigation controls if multi-image */}
-                    {post.mediaUrls.length > 1 && (
+                    {resolvedUrls.length > 1 && (
                       <>
                         <button
                           type="button"
@@ -229,8 +227,8 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setActiveSlide(prev => Math.min(post.mediaUrls.length - 1, prev + 1))}
-                          disabled={activeSlide === post.mediaUrls.length - 1}
+                          onClick={() => setActiveSlide(prev => Math.min(resolvedUrls.length - 1, prev + 1))}
+                          disabled={activeSlide === resolvedUrls.length - 1}
                           className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 text-white hover:bg-black/90 disabled:opacity-20 transition-opacity"
                           aria-label="Próximo slide"
                         >
@@ -238,7 +236,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                         </button>
 
                         <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-                          {post.mediaUrls.map((_, i) => (
+                          {resolvedUrls.map((_, i) => (
                             <button
                               key={i}
                               type="button"
@@ -252,7 +250,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
 
                         <span className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-mono bg-black/75 text-white backdrop-blur-xs flex items-center gap-1.5">
                           <Layers className="w-3.5 h-3.5" />
-                          Lâmina {activeSlide + 1} de {post.mediaUrls.length}
+                          Lâmina {activeSlide + 1} de {resolvedUrls.length}
                         </span>
                       </>
                     )}

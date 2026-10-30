@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { PostContent } from '../types';
 import { PostApprovalCard } from './PostApprovalCard';
 import { PostDetailView } from './PostDetailView';
 import { CalendarView } from './CalendarView';
 import { HowToApproveGuide } from './HowToApproveGuide';
-import { ProjectChatModal } from './ProjectChatModal';
+import { GeneralClientChatModal } from './GeneralClientChatModal';
+import { ExitConfirmationModal } from './ExitConfirmationModal';
 import { PostChatModal } from './PostChatModal';
 import { RequestChangesModal } from './RequestChangesModal';
 import { NotificationsDrawer } from './NotificationsDrawer';
@@ -83,6 +84,129 @@ export const ClientPortalView: React.FC = () => {
   const [changesPost, setChangesPost] = useState<PostContent | null>(null);
   const [projectChatOpen, setProjectChatOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
+
+  // State tracker ref for popstate handler without stale closures
+  const stateRef = useRef({
+    detailPost,
+    chatPost,
+    changesPost,
+    projectChatOpen,
+    notificationsOpen,
+    showExitConfirmModal,
+    mainSection,
+  });
+
+  useEffect(() => {
+    stateRef.current = {
+      detailPost,
+      chatPost,
+      changesPost,
+      projectChatOpen,
+      notificationsOpen,
+      showExitConfirmModal,
+      mainSection,
+    };
+  }, [detailPost, chatPost, changesPost, projectChatOpen, notificationsOpen, showExitConfirmModal, mainSection]);
+
+  // Mobile Back Button Navigation & Exit Confirmation
+  useEffect(() => {
+    try {
+      window.history.replaceState({ appPage: 'client_root' }, '');
+    } catch {}
+
+    const handlePopState = () => {
+      const state = stateRef.current;
+
+      // 1. If Exit Confirmation is open, close it and stay in the app
+      if (state.showExitConfirmModal) {
+        setShowExitConfirmModal(false);
+        try { window.history.pushState({ appPage: 'client_root' }, ''); } catch {}
+        return;
+      }
+
+      // 2. If Post Detail is open, close it
+      if (state.detailPost) {
+        setDetailPost(null);
+        try { window.history.pushState({ appPage: 'client_root' }, ''); } catch {}
+        return;
+      }
+
+      // 3. If General Chat is open, close it
+      if (state.projectChatOpen) {
+        setProjectChatOpen(false);
+        try { window.history.pushState({ appPage: 'client_root' }, ''); } catch {}
+        return;
+      }
+
+      // 4. If Notifications Drawer is open, close it
+      if (state.notificationsOpen) {
+        setNotificationsOpen(false);
+        try { window.history.pushState({ appPage: 'client_root' }, ''); } catch {}
+        return;
+      }
+
+      // 5. If Request Changes is open, close it
+      if (state.changesPost) {
+        setChangesPost(null);
+        try { window.history.pushState({ appPage: 'client_root' }, ''); } catch {}
+        return;
+      }
+
+      // 6. If sub-chat is open, close it
+      if (state.chatPost) {
+        setChatPost(null);
+        try { window.history.pushState({ appPage: 'client_root' }, ''); } catch {}
+        return;
+      }
+
+      // 7. If on Calendar or Guide tabs, return to Content
+      if (state.mainSection !== 'content') {
+        setMainSection('content');
+        try { window.history.pushState({ appPage: 'client_root' }, ''); } catch {}
+        return;
+      }
+
+      // 8. If on the root view of the client project:
+      // Prevent exiting the app, re-push state, and display confirmation modal
+      try { window.history.pushState({ appPage: 'client_root' }, ''); } catch {}
+      setShowExitConfirmModal(true);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  const handleConfirmExit = () => {
+    setShowExitConfirmModal(false);
+    if (window.history.length > 2) {
+      window.history.go(-2);
+    } else {
+      window.location.href = 'about:blank';
+    }
+  };
+
+  const openDetail = (p: PostContent) => {
+    try { window.history.pushState({ appPage: 'detail' }, ''); } catch {}
+    setDetailPost(p);
+  };
+
+  const openGeneralChat = () => {
+    try { window.history.pushState({ appPage: 'chat' }, ''); } catch {}
+    setProjectChatOpen(true);
+  };
+
+  const openNotifications = () => {
+    try { window.history.pushState({ appPage: 'notifications' }, ''); } catch {}
+    setNotificationsOpen(true);
+  };
+
+  const openChanges = (p: PostContent) => {
+    try { window.history.pushState({ appPage: 'changes' }, ''); } catch {}
+    setChangesPost(p);
+  };
 
   const pendingPosts = clientPosts.filter(p => p.status === 'pending_approval');
   const changesPosts = clientPosts.filter(p => p.status === 'changes_requested');
@@ -216,7 +340,7 @@ export const ClientPortalView: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0">
             {/* Chat Button placed at the top next to the bell icon */}
             <button
-              onClick={() => setProjectChatOpen(true)}
+              onClick={openGeneralChat}
               className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95"
               title="Abrir Chat com a Agência"
             >
@@ -231,7 +355,7 @@ export const ClientPortalView: React.FC = () => {
 
             {/* Notifications Bell */}
             <button
-              onClick={() => setNotificationsOpen(true)}
+              onClick={openNotifications}
               className="relative p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
               title="Notificações do Projeto"
             >
@@ -457,9 +581,9 @@ export const ClientPortalView: React.FC = () => {
                         key={post.id}
                         post={post}
                         role="client"
-                        onOpenChat={p => setChatPost(p)}
-                        onRequestChanges={p => setChangesPost(p)}
-                        onOpenDetail={p => setDetailPost(p)}
+                        onOpenChat={openGeneralChat}
+                        onRequestChanges={openChanges}
+                        onOpenDetail={openDetail}
                       />
                     ))}
                   </div>
@@ -482,9 +606,9 @@ export const ClientPortalView: React.FC = () => {
                         key={post.id}
                         post={post}
                         role="client"
-                        onOpenChat={p => setChatPost(p)}
-                        onRequestChanges={p => setChangesPost(p)}
-                        onOpenDetail={p => setDetailPost(p)}
+                        onOpenChat={openGeneralChat}
+                        onRequestChanges={openChanges}
+                        onOpenDetail={openDetail}
                       />
                     ))}
                   </div>
@@ -507,8 +631,8 @@ export const ClientPortalView: React.FC = () => {
                         key={post.id}
                         post={post}
                         role="client"
-                        onOpenChat={p => setChatPost(p)}
-                        onOpenDetail={p => setDetailPost(p)}
+                        onOpenChat={openGeneralChat}
+                        onOpenDetail={openDetail}
                       />
                     ))}
                   </div>
@@ -529,7 +653,7 @@ export const ClientPortalView: React.FC = () => {
             </div>
             <CalendarView
               posts={clientPosts}
-              onSelectPost={p => setDetailPost(p)}
+              onSelectPost={openDetail}
             />
           </div>
         )}
@@ -550,15 +674,14 @@ export const ClientPortalView: React.FC = () => {
         }}
       />
 
-      {/* Project Chat Modal (Opened from top header button beside the bell) */}
-      {currentProject && client && (
-        <ProjectChatModal
+      {/* General Client Chat Modal (General conversation between Agency & Client with search & delete) */}
+      {client && (
+        <GeneralClientChatModal
           isOpen={projectChatOpen}
           onClose={() => setProjectChatOpen(false)}
-          project={currentProject}
           client={client}
-          posts={clientPosts}
-          role="client"
+          project={currentProject}
+          role={portalMode === 'agency' ? 'agency' : 'client'}
         />
       )}
 
@@ -585,6 +708,13 @@ export const ClientPortalView: React.FC = () => {
         filterProjectId={currentProject?.id}
         title={`Notificações · ${currentProject?.name || client?.company}`}
         role="client"
+      />
+
+      {/* Exit Confirmation Modal for mobile back button navigation */}
+      <ExitConfirmationModal
+        isOpen={showExitConfirmModal}
+        onCancel={() => setShowExitConfirmModal(false)}
+        onConfirmExit={handleConfirmExit}
       />
     </div>
   );

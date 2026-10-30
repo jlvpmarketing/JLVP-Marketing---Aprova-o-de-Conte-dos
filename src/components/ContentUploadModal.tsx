@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { MediaType, SocialPlatform, PostContent, ContentTypeFormat } from '../types';
 import { getDriveEmbedUrl, isValidDriveUrl } from '../utils/drivePlayer';
-import { getPostContentType } from '../utils/contentTypeHelper';
+import { getPostContentType, isVideoUrl } from '../utils/contentTypeHelper';
 import { compressImage } from '../utils/imageCompressor';
+import { mediaStorage } from '../services/mediaStorage';
 import { 
   PlusCircle, 
   Upload, 
@@ -93,7 +94,6 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
   const [isUploading, setIsUploading] = useState(false);
 
   // RESET or POPULATE form fields whenever modal opens or postToEdit changes
-  // This completely eliminates ghost postToEdit state from overwriting previous approved posts!
   useEffect(() => {
     if (!isOpen) return;
 
@@ -103,10 +103,18 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       setContentType(postToEdit.contentType || getPostContentType(postToEdit));
       setTitle(postToEdit.title || '');
       setMediaType(postToEdit.mediaType || 'image');
-      setMediaUrls(postToEdit.mediaUrls ? [...postToEdit.mediaUrls] : []);
       setDriveVideoUrl(postToEdit.driveVideoUrl || '');
       setCaption(postToEdit.caption || '');
       setScheduledDate(postToEdit.scheduledDate || new Date().toISOString().slice(0, 16));
+
+      // Resolve any chunked media URLs so preview works
+      if (postToEdit.mediaUrls && postToEdit.mediaUrls.length > 0) {
+        Promise.all(postToEdit.mediaUrls.map(u => mediaStorage.resolveMedia(u)))
+          .then(resolved => setMediaUrls(resolved))
+          .catch(() => setMediaUrls([...postToEdit.mediaUrls]));
+      } else {
+        setMediaUrls([]);
+      }
     } else {
       const defaultCli = selectedClientId || (clients[0]?.id || '');
       setTargetClientId(defaultCli);
@@ -149,14 +157,23 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     for (const file of Array.from(files)) {
       try {
         if (file.type.startsWith('image/')) {
-          // Compress to 960x1200 0.72 quality (~60KB to 90KB per image)
-          // Guarantees fast cloud sync and never exceeds Firestore's 1MB document limit
-          const compressed = await compressImage(file, 960, 1200, 0.72);
+          // Compress image to ensure fast cloud sync
+          const compressed = await compressImage(file, 850, 1100, 0.65);
           newUrls.push(compressed);
-        } else {
-          if (file.size > 500 * 1024) {
-            addToast('warning', 'Vídeo pesado detectado', 'Para vídeos com alta resolução, utilize a opção "Vídeo (Google Drive)" para evitar limites de armazenamento do banco de dados.');
+        } else if (file.type.startsWith('video/')) {
+          // Allow video files directly up to 50MB
+          if (file.size > 50 * 1024 * 1024) {
+            addToast('error', 'Arquivo Muito Grande', 'O tamanho máximo para upload direto de vídeo é 50MB. Para vídeos maiores, use o link do Google Drive.');
+            continue;
           }
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          newUrls.push(base64);
+        } else {
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
@@ -173,11 +190,15 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     setIsUploading(false);
 
     if (newUrls.length > 0) {
-      const hasVideo = newUrls.some(u => u.startsWith('data:video') || u.includes('.mp4') || u.includes('.mov') || u.includes('.webm'));
-      if (hasVideo && contentType === 'static') {
-        setMediaType('video');
-      } else if (contentType === 'carousel') {
+      const hasVideo = newUrls.some(u => isVideoUrl(u));
+      if (contentType === 'carousel') {
         setMediaType('carousel');
+      } else if (contentType === 'story') {
+        setMediaType(hasVideo ? 'video' : 'image');
+      } else if (contentType === 'static') {
+        setMediaType(hasVideo ? 'video' : 'image');
+      } else if (contentType === 'reel') {
+        setMediaType('video');
       }
 
       if (contentType === 'carousel' || contentType === 'story') {
@@ -185,7 +206,7 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       } else {
         setMediaUrls([newUrls[0]]);
       }
-      addToast('success', 'Mídia processada', `${newUrls.length} arquivo(s) preparado(s) e anexado(s).`);
+      addToast('success', 'Mídia Anexada', `${newUrls.length} arquivo(s) adicionado(s) com sucesso.`);
     }
 
     // Reset input
@@ -249,7 +270,7 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     addToast('success', 'Pasta criada', 'Pasta "Geral / Feed" criada com sucesso.');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title) {
       addToast('error', 'Título obrigatório', 'Por favor, insira o título do conteúdo.');
@@ -258,14 +279,19 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
 
     let finalProjectId = projectId;
     if (!finalProjectId) {
-      // Auto-create project folder if missing so the app never crashes
-      const newProj = addProject({
-        clientId: targetClientId,
-        name: 'Geral / Feed',
-        description: 'Pasta padrão criada automaticamente',
-        status: 'active',
-      });
-      finalProjectId = newProj.id;
+      const existingClientProjects = projects.filter(p => p.clientId === targetClientId);
+      if (existingClientProjects.length > 0) {
+        finalProjectId = existingClientProjects[0].id;
+      } else {
+        // Auto-create project folder only if client truly has no project
+        const newProj = addProject({
+          clientId: targetClientId,
+          name: 'Geral / Feed',
+          description: 'Pasta padrão criada automaticamente',
+          status: 'active',
+        });
+        finalProjectId = newProj.id;
+      }
     }
 
     if (mediaType === 'drive_video' && !driveVideoUrl) {
@@ -274,18 +300,30 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     }
 
     if ((mediaType === 'image' || mediaType === 'carousel') && mediaUrls.length === 0) {
-      addToast('error', 'Mídia necessária', 'Suba ao menos uma imagem para o conteúdo.');
+      addToast('error', 'Mídia necessária', 'Suba ao menos uma imagem ou vídeo para o conteúdo.');
       return;
     }
 
     try {
+      setIsUploading(true);
+      // Pre-chunk any large media URLs so they persist seamlessly without exceeding 1MB
+      const finalMediaUrls = await Promise.all(
+        mediaUrls.map(async (url) => {
+          if (url && (url.startsWith('data:video') || url.length > 250 * 1024)) {
+            const mime = url.startsWith('data:video') ? 'video/mp4' : 'image/jpeg';
+            return await mediaStorage.storeMedia(url, mime);
+          }
+          return url;
+        })
+      );
+
       const payload: any = {
         projectId: finalProjectId,
         clientId: targetClientId,
         title,
         contentType,
         mediaType,
-        mediaUrls,
+        mediaUrls: finalMediaUrls,
         caption,
         scheduledDate,
         platforms: ['instagram_feed'],
@@ -304,8 +342,10 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
         });
         addToast('success', 'Publicação criada', 'Conteúdo publicado e pronto para aprovação.');
       }
+      setIsUploading(false);
       onClose();
     } catch (err: any) {
+      setIsUploading(false);
       console.error('Erro ao salvar publicação:', err);
       addToast('error', 'Erro ao salvar', 'Houve um problema ao salvar. Verifique os dados e tente novamente.');
     }
@@ -537,7 +577,7 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
 
                   {/* Reorderable Media Items List */}
                   {mediaUrls.map((url, idx) => {
-                    const isVideo = url.startsWith('data:video') || url.includes('.mp4') || url.includes('.mov') || url.includes('.webm');
+                    const isVideo = isVideoUrl(url);
                     return (
                       <div
                         key={idx}
@@ -721,7 +761,7 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                   <div className="relative w-full h-full flex items-center justify-center">
                     {(() => {
                       const currentMedia = mediaUrls[activeSlide] || mediaUrls[0];
-                      const isVideo = currentMedia.startsWith('data:video') || currentMedia.includes('.mp4') || currentMedia.includes('.mov') || currentMedia.includes('.webm');
+                      const isVideo = isVideoUrl(currentMedia);
                       return isVideo ? (
                         <video
                           src={currentMedia}

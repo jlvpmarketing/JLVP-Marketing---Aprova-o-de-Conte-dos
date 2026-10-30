@@ -41,5 +41,15 @@ service cloud.firestore {
     match /notifications/{notifId} {
       allow read, write: if true;
     }
+
+    // Large media chunks (for videos in carousel, reels, stories, static)
+    match /media_chunks/{chunkId} {
+      allow read, write: if true;
+    }
+
+    // General chat messages between Agency and Client
+    match /chat_messages/{messageId} {
+      allow read, write: if true;
+    }
   }
 }

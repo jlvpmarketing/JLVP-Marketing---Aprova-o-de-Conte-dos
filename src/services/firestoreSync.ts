@@ -4,10 +4,12 @@ import {
   setDoc, 
   getDocs, 
   deleteDoc, 
-  onSnapshot 
+  onSnapshot,
+  query,
+  where
 } from 'firebase/firestore';
 import { db, testFirestoreConnection } from '../firebase';
-import { Client, FolderProject, PostContent, AgencyUser, AuditLogItem, AgencyConfig, NotificationItem } from '../types';
+import { Client, FolderProject, PostContent, AgencyUser, AuditLogItem, AgencyConfig, NotificationItem, GeneralChatMessage } from '../types';
 
 let isFirestoreConnected = false;
 
@@ -42,6 +44,8 @@ export function sanitizeForFirestore<T>(data: T): any {
   return data;
 }
 
+import { mediaStorage } from './mediaStorage';
+
 export const firestoreSync = {
   isConnected: () => isFirestoreConnected,
 
@@ -49,7 +53,7 @@ export const firestoreSync = {
   async seedInitialIfEmpty(
     initialClients: Client[], 
     initialProjects: FolderProject[], 
-    initialPosts: PostContent[],
+    _initialPosts: PostContent[],
     initialUsers: AgencyUser[],
     initialLogs: AuditLogItem[],
     initialConfig: AgencyConfig
@@ -71,12 +75,14 @@ export const firestoreSync = {
         }
       }
 
-      // 3. Posts
-      const postsSnap = await getDocs(collection(db, 'posts'));
-      if (postsSnap.empty && initialPosts.length > 0) {
-        for (const post of initialPosts) {
-          await setDoc(doc(db, 'posts', post.id), post);
+      // 3. Posts - NEVER seed mock posts! Also clean up old demo posts if present.
+      try {
+        const mockPostIds = ['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'];
+        for (const mId of mockPostIds) {
+          await deleteDoc(doc(db, 'posts', mId));
         }
+      } catch (cleanErr) {
+        console.warn('Limpeza de posts mock:', cleanErr);
       }
 
       // 4. Agency Users - check and ensure owner is present
@@ -124,14 +130,33 @@ export const firestoreSync = {
     }
   },
 
-  // Save/Update Post
-  async savePost(post: PostContent) {
+  // Save/Update Post (with automatic media chunking for videos and heavy media)
+  async savePost(post: PostContent): Promise<{ success: boolean; error?: string }> {
     try {
-      const cleanData = sanitizeForFirestore(post);
-      await setDoc(doc(db, 'posts', post.id), cleanData, { merge: true });
-      console.log('✅ Post gravado no Firestore:', post.id);
-    } catch (err) {
+      let finalPost = { ...post };
+
+      // Chunk any large media or video URLs to ensure Firestore document never exceeds 1MB limit
+      if (finalPost.mediaUrls && finalPost.mediaUrls.length > 0) {
+        const processedUrls = await Promise.all(
+          finalPost.mediaUrls.map(async (url) => {
+            if (url && (url.startsWith('data:video') || url.length > 300 * 1024)) {
+              const mime = url.startsWith('data:video') ? 'video/mp4' : 'image/jpeg';
+              return await mediaStorage.storeMedia(url, mime);
+            }
+            return url;
+          })
+        );
+        finalPost.mediaUrls = processedUrls;
+      }
+
+      const cleanData = sanitizeForFirestore(finalPost);
+      await setDoc(doc(db, 'posts', finalPost.id), cleanData, { merge: true });
+      console.log('✅ Post gravado no Firestore com sucesso:', finalPost.id);
+      return { success: true };
+    } catch (err: any) {
       console.error('❌ Erro ao salvar post no Firestore:', err);
+      const message = err?.message || 'Erro desconhecido ao gravar post no banco de dados.';
+      return { success: false, error: message };
     }
   },
 
@@ -319,6 +344,61 @@ export const firestoreSync = {
         }
       }, (err) => {
         console.warn('Assinatura de configurações falhou:', err);
+      });
+    } catch {
+      return () => {};
+    }
+  },
+
+  // Save General Chat Message
+  async saveChatMessage(message: GeneralChatMessage) {
+    try {
+      const cleanData = sanitizeForFirestore(message);
+      await setDoc(doc(db, 'chat_messages', message.id), cleanData, { merge: true });
+      return { success: true };
+    } catch (err: any) {
+      console.warn('Erro ao salvar mensagem de chat no Firestore:', err);
+      return { success: false, error: err?.message };
+    }
+  },
+
+  // Delete specific chat message
+  async deleteChatMessage(messageId: string) {
+    try {
+      await deleteDoc(doc(db, 'chat_messages', messageId));
+      return { success: true };
+    } catch (err: any) {
+      console.warn('Erro ao remover mensagem do Firestore:', err);
+      return { success: false, error: err?.message };
+    }
+  },
+
+  // Clear all chat messages for a specific client
+  async clearClientChat(clientId: string) {
+    try {
+      const q = query(collection(db, 'chat_messages'), where('clientId', '==', clientId));
+      const snap = await getDocs(q);
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, 'chat_messages', d.id));
+      }
+      return { success: true };
+    } catch (err: any) {
+      console.warn('Erro ao limpar conversa no Firestore:', err);
+      return { success: false, error: err?.message };
+    }
+  },
+
+  // Subscribe to real-time chat messages for a specific client
+  subscribeToClientChat(clientId: string, onUpdate: (messages: GeneralChatMessage[]) => void) {
+    try {
+      const q = query(collection(db, 'chat_messages'), where('clientId', '==', clientId));
+      return onSnapshot(q, (snapshot) => {
+        const msgs = snapshot.docs.map(d => d.data() as GeneralChatMessage);
+        // Sort chronologically ascending
+        msgs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        onUpdate(msgs);
+      }, (err) => {
+        console.warn('Assinatura de mensagens de chat falhou:', err);
       });
     } catch {
       return () => {};
