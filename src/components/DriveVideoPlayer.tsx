@@ -35,19 +35,22 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
     );
   }
 
-  // Official clean Google Drive embed & direct view URLs
+  // High performance endpoints
+  const serverStreamUrl = `/api/drive-video/${fileId}`;
+  const directGoogleStreamUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
   const embedUrl = `https://drive.google.com/file/d/${fileId}/preview`;
   const cleanDriveViewUrl = `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
   const cleanDrivePreviewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
-  const directStreamUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
 
-  // State to support native clean player (controls strictly at the bottom) or iframe
-  const [playerMode, setPlayerMode] = useState<'iframe' | 'native'>('iframe');
+  // Default to native clean player (controls strictly at the bottom, zero overlays in the middle)
+  const [playerMode, setPlayerMode] = useState<'native' | 'iframe'>('native');
+  const [videoError, setVideoError] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Enter native hardware full screen (removes all centered overlays on mobile by letting phone native player take over)
+  // Enter native hardware full screen (lets phone native player take over cleanly)
   const handleToggleFullscreen = () => {
     try {
-      const elem = containerRef.current || iframeRef.current;
+      const elem = videoRef.current || containerRef.current || iframeRef.current;
       if (!elem) return;
 
       if (!document.fullscreenElement) {
@@ -55,6 +58,9 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
           elem.requestFullscreen();
         } else if ((elem as any).webkitRequestFullscreen) {
           (elem as any).webkitRequestFullscreen();
+        } else if ((elem as any).webkitEnterFullscreen) {
+          // iOS Safari native video fullscreen
+          (elem as any).webkitEnterFullscreen();
         } else if ((elem as any).mozRequestFullScreen) {
           (elem as any).mozRequestFullScreen();
         } else if ((elem as any).msRequestFullscreen) {
@@ -70,8 +76,7 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
         setIsFullscreen(false);
       }
     } catch (err) {
-      console.warn('Fullscreen não suportado diretamente:', err);
-      // Fallback: open full-screen preview tab
+      console.warn('Fullscreen fallback para aba cheia:', err);
       window.open(cleanDrivePreviewUrl, '_blank', 'noopener,noreferrer');
     }
   };
@@ -81,23 +86,23 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
       ref={containerRef}
       className={`relative w-full h-full flex flex-col items-center justify-center bg-black overflow-hidden rounded-2xl select-none group ${className}`}
     >
-      {/* Top Floating Control Bar */}
-      <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-20 pointer-events-auto">
-        <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/75 backdrop-blur-md text-white/90 border border-white/15 flex items-center gap-1.5 shadow-md">
+      {/* Top Floating Control Bar - unobtrusive and translucent */}
+      <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-20 pointer-events-auto">
+        <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/80 backdrop-blur-md text-white/90 border border-white/15 flex items-center gap-1.5 shadow-md">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Google Drive</span>
+          <span>{playerMode === 'native' ? 'Vídeo (Player Limpo)' : 'Google Drive'}</span>
         </span>
 
         <div className="flex items-center gap-1.5">
           {/* Toggle Native / Iframe mode */}
           <button
             type="button"
-            onClick={() => setPlayerMode(prev => prev === 'iframe' ? 'native' : 'iframe')}
+            onClick={() => setPlayerMode(prev => prev === 'native' ? 'iframe' : 'native')}
             className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/80 hover:bg-black text-sky-300 hover:text-sky-200 backdrop-blur-md border border-sky-400/30 flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
-            title="Alternar modo de player"
+            title="Alternar entre Player Nativo (sem botões no meio) e Embutido"
           >
             <RefreshCw className="w-3 h-3 text-sky-400" />
-            <span className="hidden sm:inline">{playerMode === 'native' ? 'Modo Embutido' : 'Player Limpo'}</span>
+            <span>{playerMode === 'native' ? 'Modo Iframe' : 'Player Nativo'}</span>
           </button>
 
           {/* Fullscreen Button: Native Fullscreen removes middle controls on phones */}
@@ -105,7 +110,7 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
             type="button"
             onClick={handleToggleFullscreen}
             className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/80 hover:bg-black text-amber-300 hover:text-amber-200 backdrop-blur-md border border-amber-400/30 flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
-            title="Assistir em Tela Cheia (elimina botões na frente da tela no celular)"
+            title="Assistir em Tela Cheia no celular"
           >
             <Maximize2 className="w-3 h-3 text-amber-400" />
             <span className="hidden sm:inline">Tela Cheia</span>
@@ -120,29 +125,36 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
             title="Abrir no Google Drive oficial"
           >
             <ExternalLink className="w-3 h-3 text-emerald-400" />
-            <span className="hidden sm:inline">Abrir no Drive</span>
+            <span className="hidden sm:inline">Drive</span>
           </a>
         </div>
       </div>
 
-      {/* Embedded Player */}
-      <div className="relative w-full h-full flex items-center justify-center bg-zinc-950">
-        {playerMode === 'native' ? (
+      {/* Main Video Display Area */}
+      <div className="relative w-full h-full flex items-center justify-center bg-black">
+        {playerMode === 'native' && !videoError ? (
           <video
-            src={directStreamUrl}
+            ref={videoRef}
+            src={serverStreamUrl}
             controls
             playsInline
-            className="w-full h-full object-contain"
+            controlsList="nodownload"
+            className="w-full h-full object-contain bg-black"
             onError={() => {
-              // If Google Drive blocks direct uc download (e.g. file needs virus check confirmation), fallback to iframe
-              setPlayerMode('iframe');
+              // Try direct Google stream with confirm=t before falling back to iframe
+              if (videoRef.current && videoRef.current.src !== directGoogleStreamUrl) {
+                videoRef.current.src = directGoogleStreamUrl;
+              } else {
+                setVideoError(true);
+                setPlayerMode('iframe');
+              }
             }}
           />
         ) : (
           <iframe
             ref={iframeRef}
             src={embedUrl}
-            className="w-full h-full border-0"
+            className="w-full h-full border-0 bg-black"
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
             allowFullScreen
             onLoad={() => setIframeLoaded(true)}
@@ -151,26 +163,26 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
         )}
       </div>
 
-      {/* Mobile Friendly Bottom Quick Assist Bar */}
+      {/* Bottom Quick Bar: prominent full screen and external view buttons */}
       <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-auto z-20">
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="px-3 py-1.5 rounded-xl bg-black/85 hover:bg-black text-white text-xs font-semibold backdrop-blur-md border border-white/25 flex items-center gap-1.5 shadow-lg transition-transform active:scale-95 cursor-pointer"
+          className="px-3 py-1.5 rounded-xl bg-black/85 hover:bg-black text-amber-300 text-xs font-semibold backdrop-blur-md border border-amber-400/30 flex items-center gap-1.5 shadow-lg transition-transform active:scale-95 cursor-pointer"
         >
           <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
-          <span>Tela Cheia (Sem botões no meio)</span>
+          <span>Tela Cheia (Vídeo Limpo)</span>
         </button>
 
         <a
-          href={cleanDrivePreviewUrl}
+          href={cleanDriveViewUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="px-2.5 py-1.5 rounded-xl bg-black/80 hover:bg-black text-slate-200 text-[11px] font-medium backdrop-blur-md border border-white/15 flex items-center gap-1 shadow-md transition-colors"
-          title="Abrir em aba cheia"
+          className="px-2.5 py-1.5 rounded-xl bg-black/85 hover:bg-black text-slate-200 text-[11px] font-medium backdrop-blur-md border border-white/20 flex items-center gap-1 shadow-md transition-colors"
+          title="Abrir no Google Drive oficial"
         >
           <ExternalLink className="w-3 h-3 text-sky-400" />
-          <span className="hidden sm:inline">Nova Aba</span>
+          <span>Abrir no Drive</span>
         </a>
       </div>
     </div>

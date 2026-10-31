@@ -6,6 +6,7 @@ import { getPostContentType, isVideoUrl, isDriveVideoUrl } from '../utils/conten
 import { compressImage } from '../utils/imageCompressor';
 import { mediaStorage } from '../services/mediaStorage';
 import { serverSync } from '../services/serverSync';
+import { firestoreSync } from '../services/firestoreSync';
 import { DriveVideoPlayer } from './DriveVideoPlayer';
 import { 
   PlusCircle, 
@@ -356,16 +357,32 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
 
     try {
       setIsSaving(true);
-      // Pre-chunk any large media URLs so they persist in IndexedDB seamlessly without blocking
+
+      // Clean and sanitize all media URLs before saving
       const finalMediaUrls = await Promise.all(
         mediaUrls.map(async (url) => {
-          if (url && (url.startsWith('data:video') || url.length > 250 * 1024)) {
+          if (!url) return '';
+          // If already a Google Drive link or server URL, keep as is
+          if (url.startsWith('/api/media/') || url.startsWith('http://') || url.startsWith('https://')) {
+            return url;
+          }
+          // If it's a large video base64, store to server disk to ensure cross-device playback
+          if (url.startsWith('data:video') || url.length > 250 * 1024) {
             const mime = url.startsWith('data:video') ? 'video/mp4' : 'image/jpeg';
-            return await mediaStorage.storeMedia(url, mime);
+            try {
+              const serverUrl = await serverSync.uploadMedia(url, mime);
+              if (serverUrl && serverUrl.startsWith('/api/media/')) {
+                return serverUrl;
+              }
+            } catch (uErr) {
+              console.warn('Erro ao enviar mídia ao servidor:', uErr);
+            }
           }
           return url;
         })
       );
+
+      const filteredMediaUrls = finalMediaUrls.filter(u => Boolean(u));
 
       let effectiveMediaType: MediaType = mediaType;
       if (contentType === 'carousel') {
@@ -373,9 +390,9 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       } else if (contentType === 'reel') {
         effectiveMediaType = cleanDriveUrl ? 'drive_video' : 'video';
       } else if (contentType === 'story') {
-        effectiveMediaType = cleanDriveUrl ? 'drive_video' : (finalMediaUrls.some(u => isVideoUrl(u)) ? 'video' : 'image');
+        effectiveMediaType = cleanDriveUrl ? 'drive_video' : (filteredMediaUrls.some(u => isVideoUrl(u)) ? 'video' : 'image');
       } else {
-        effectiveMediaType = cleanDriveUrl ? 'drive_video' : (finalMediaUrls.some(u => isVideoUrl(u)) ? 'video' : 'image');
+        effectiveMediaType = cleanDriveUrl ? 'drive_video' : (filteredMediaUrls.some(u => isVideoUrl(u)) ? 'video' : 'image');
       }
 
       const payload: any = {
@@ -384,10 +401,11 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
         title: trimmedTitle,
         contentType,
         mediaType: effectiveMediaType,
-        mediaUrls: finalMediaUrls,
+        mediaUrls: filteredMediaUrls,
         caption,
         scheduledDate: scheduledDate || new Date().toISOString().slice(0, 16),
         platforms: ['instagram_feed'],
+        updatedAt: new Date().toISOString(),
       };
 
       if (cleanDriveUrl) {
@@ -395,14 +413,19 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       }
 
       if (postToEdit) {
+        const updatedPost = { ...postToEdit, ...payload };
         updatePost(postToEdit.id, payload);
-        addToast('success', 'Publicação atualizada', 'As alterações foram salvas com sucesso.');
+        // Explicitly guarantee remote Firestore write
+        await firestoreSync.savePost(updatedPost);
+        addToast('success', 'Publicação atualizada', 'As alterações foram salvas e sincronizadas com sucesso.');
       } else {
-        addPost({
+        const newPost = addPost({
           ...payload,
           status: 'pending_approval',
         });
-        addToast('success', 'Publicação criada', 'Conteúdo publicado e pronto para aprovação.');
+        // Explicitly guarantee remote Firestore write
+        await firestoreSync.savePost(newPost);
+        addToast('success', 'Publicação criada', 'Conteúdo publicado e disponível imediatamente para o cliente.');
       }
       setIsSaving(false);
       onClose();
@@ -632,8 +655,21 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                     className="h-24 w-28 rounded-xl border-2 border-dashed border-slate-300 hover:border-black hover:bg-zinc-50 flex flex-col items-center justify-center text-slate-500 transition-colors shrink-0 cursor-pointer disabled:opacity-50"
                   >
                     <Upload className="w-5 h-5 mb-1" />
-                    <span className="text-[10px] font-semibold">
+                    <span className="text-[10px] font-semibold text-center px-1">
                       {isUploading ? 'Processando...' : (contentType === 'carousel' || contentType === 'story' ? 'Subir Arquivos' : 'Subir Arquivo')}
+                    </span>
+                  </button>
+
+                  {/* Add Google Drive Video slide button for Carousel or Story */}
+                  <button
+                    type="button"
+                    onClick={() => setShowDriveSlideForm(prev => !prev)}
+                    className="h-24 w-28 rounded-xl border-2 border-dashed border-amber-300 hover:border-amber-500 bg-amber-50/60 hover:bg-amber-50 flex flex-col items-center justify-center text-amber-900 transition-colors shrink-0 cursor-pointer"
+                    title="Adicionar vídeo do Google Drive como slide (recomendado para arquivos grandes)"
+                  >
+                    <Video className="w-5 h-5 mb-1 text-amber-600" />
+                    <span className="text-[10px] font-bold text-center px-1">
+                      + Vídeo Drive
                     </span>
                   </button>
 
@@ -736,7 +772,7 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                 </div>
 
                 {/* Option to insert Google Drive video slide */}
-                {(contentType === 'carousel' || contentType === 'story') && (
+                {(contentType === 'carousel' || contentType === 'story' || contentType === 'static') && (
                   <div className="pt-2">
                     {!showDriveSlideForm ? (
                       <button

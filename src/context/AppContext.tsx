@@ -497,12 +497,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return remotePost;
           });
 
-          // 2. Preserve any local posts that do not exist yet in remote
+          // 2. Preserve any local posts that do not exist yet in remote and sync them to Firestore
           const pendingSync = prev.filter(p => {
             if (remoteMap.has(p.id)) return false;
             if (['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id)) return false;
             return true;
           });
+
+          // Sync pending posts to Firestore so clients receive them immediately
+          if (pendingSync.length > 0) {
+            pendingSync.forEach(p => {
+              firestoreSync.savePost(p).catch(() => {});
+              serverSync.savePost(p).catch(() => {});
+            });
+          }
 
           return [...mergedRemote, ...pendingSync];
         });

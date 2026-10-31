@@ -181,7 +181,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
               <div
                 className={`relative w-full ${contentInfo.aspectClass} rounded-2xl overflow-hidden bg-slate-950 shadow-xl flex items-center justify-center border border-slate-800`}
               >
-                {post.mediaType === 'drive_video' ? (
+                {(post.mediaType === 'drive_video' || Boolean(post.driveVideoUrl)) ? (
                   post.driveVideoUrl ? (
                     <div className="w-full h-full relative">
                       <DriveVideoPlayer

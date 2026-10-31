@@ -141,7 +141,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
           ? 'aspect-[9/16] max-h-[480px]'
           : 'aspect-[4/5] max-h-[480px]'
       }`}>
-        {post.mediaType === 'drive_video' ? (
+        {(post.mediaType === 'drive_video' || Boolean(post.driveVideoUrl)) ? (
           post.driveVideoUrl ? (
             <div className="w-full h-full relative bg-slate-950 flex items-center justify-center overflow-hidden">
               <img

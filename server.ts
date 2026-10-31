@@ -143,7 +143,6 @@ async function startServer() {
       res.status(500).json({ error: err.message || 'Erro ao processar mídia' });
     }
   });
-
   // Media Streamer with HTTP 206 Range support (allows mobile Safari/Chrome to stream videos seamlessly)
   app.get('/api/media/:file', (req, res) => {
     const fileName = req.params.file;
@@ -170,22 +169,148 @@ async function startServer() {
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
       const chunksize = end - start + 1;
       const file = fs.createReadStream(filePath, { start, end });
-      const head = {
+      res.writeHead(206, {
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Accept-Ranges': 'bytes',
         'Content-Length': chunksize,
         'Content-Type': contentType,
-      };
-      res.writeHead(206, head);
+      });
       file.pipe(res);
     } else {
-      const head = {
+      res.writeHead(200, {
         'Content-Length': fileSize,
         'Content-Type': contentType,
         'Accept-Ranges': 'bytes',
-      };
-      res.writeHead(200, head);
+      });
       fs.createReadStream(filePath).pipe(res);
+    }
+  });
+
+  // Google Drive Video Streaming Proxy with Range Support and Local Disk Caching
+  // Solves the mobile Google Drive preview controls obstruction and mobile playback errors completely.
+  app.get('/api/drive-video/:fileId', async (req, res) => {
+    const { fileId } = req.params;
+    if (!fileId || fileId.length < 10) {
+      return res.status(400).json({ error: 'ID do arquivo do Google Drive inválido' });
+    }
+
+    const cachedFilePath = path.join(MEDIA_DIR, `drive_${fileId}.mp4`);
+
+    // If already cached locally on disk, stream directly with instant seek & range support
+    if (fs.existsSync(cachedFilePath)) {
+      const stat = fs.statSync(cachedFilePath);
+      const fileSize = stat.size;
+      const range = req.headers.range;
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = end - start + 1;
+        const file = fs.createReadStream(cachedFilePath, { start, end });
+        res.writeHead(206, {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunksize,
+          'Content-Type': 'video/mp4',
+        });
+        return file.pipe(res);
+      } else {
+        res.writeHead(200, {
+          'Content-Length': fileSize,
+          'Content-Type': 'video/mp4',
+          'Accept-Ranges': 'bytes',
+        });
+        return fs.createReadStream(cachedFilePath).pipe(res);
+      }
+    }
+
+    // Direct stream from Google Drive with confirm=t
+    try {
+      const googleStreamUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
+      const fetchHeaders: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      };
+      if (req.headers.range) {
+        fetchHeaders['Range'] = req.headers.range;
+      }
+
+      const googleRes = await fetch(googleStreamUrl, {
+        headers: fetchHeaders,
+      });
+
+      if (!googleRes.ok && googleRes.status !== 206) {
+        // Fallback: redirect to direct Google preview
+        return res.redirect(`https://drive.google.com/file/d/${fileId}/preview`);
+      }
+
+      const contentType = googleRes.headers.get('content-type') || 'video/mp4';
+
+      // If Google returned HTML (e.g. unknown confirmation), redirect to preview
+      if (contentType.includes('text/html')) {
+        return res.redirect(`https://drive.google.com/file/d/${fileId}/preview`);
+      }
+
+      const resHeaders: Record<string, string> = {
+        'Content-Type': contentType,
+        'Accept-Ranges': 'bytes',
+      };
+      const contentRange = googleRes.headers.get('content-range');
+      const contentLength = googleRes.headers.get('content-length');
+
+      if (contentRange) resHeaders['Content-Range'] = contentRange;
+      if (contentLength) resHeaders['Content-Length'] = contentLength;
+
+      res.writeHead(googleRes.status, resHeaders);
+
+      if (googleRes.body) {
+        // Pipe stream directly to client
+        const stream = googleRes.body as any;
+        if (typeof stream.pipe === 'function') {
+          stream.pipe(res);
+        } else {
+          // Web stream to Node response
+          const reader = googleRes.body.getReader();
+          const pump = async () => {
+            const { done, value } = await reader.read();
+            if (done) {
+              res.end();
+              return;
+            }
+            res.write(value);
+            await pump();
+          };
+          pump().catch(() => res.end());
+        }
+      } else {
+        res.end();
+      }
+
+      // In background, cache to disk if it was a full request (range 0 or no range)
+      if (!req.headers.range || req.headers.range.startsWith('bytes=0-')) {
+        fetch(googleStreamUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+        }).then(async (downloadRes) => {
+          if (downloadRes.ok && downloadRes.body) {
+            const tempPath = path.join(MEDIA_DIR, `temp_${fileId}_${Date.now()}.mp4`);
+            const fileStream = fs.createWriteStream(tempPath);
+            const bodyStream = downloadRes.body as any;
+            if (typeof bodyStream.pipe === 'function') {
+              bodyStream.pipe(fileStream);
+              fileStream.on('finish', () => {
+                try {
+                  fs.renameSync(tempPath, cachedFilePath);
+                  console.log(`🎬 Vídeo do Google Drive salvo em cache local: drive_${fileId}.mp4`);
+                } catch {}
+              });
+            }
+          }
+        }).catch(() => {});
+      }
+
+    } catch (err: any) {
+      console.warn('Erro ao repassar stream do Google Drive:', err?.message || err);
+      res.redirect(`https://drive.google.com/file/d/${fileId}/preview`);
     }
   });
 
