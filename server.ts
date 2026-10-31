@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import { Readable } from 'stream';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 
@@ -264,23 +265,16 @@ async function startServer() {
       res.writeHead(googleRes.status, resHeaders);
 
       if (googleRes.body) {
-        // Pipe stream directly to client
-        const stream = googleRes.body as any;
-        if (typeof stream.pipe === 'function') {
+        try {
+          const stream = typeof (googleRes.body as any).pipe === 'function'
+            ? (googleRes.body as any)
+            : Readable.fromWeb(googleRes.body as any);
           stream.pipe(res);
-        } else {
-          // Web stream to Node response
-          const reader = googleRes.body.getReader();
-          const pump = async () => {
-            const { done, value } = await reader.read();
-            if (done) {
-              res.end();
-              return;
-            }
-            res.write(value);
-            await pump();
-          };
-          pump().catch(() => res.end());
+          req.on('close', () => {
+            try { stream.destroy?.(); } catch {}
+          });
+        } catch {
+          res.end();
         }
       } else {
         res.end();
@@ -294,16 +288,20 @@ async function startServer() {
           if (downloadRes.ok && downloadRes.body) {
             const tempPath = path.join(MEDIA_DIR, `temp_${fileId}_${Date.now()}.mp4`);
             const fileStream = fs.createWriteStream(tempPath);
-            const bodyStream = downloadRes.body as any;
-            if (typeof bodyStream.pipe === 'function') {
-              bodyStream.pipe(fileStream);
-              fileStream.on('finish', () => {
-                try {
+            const bodyStream = typeof (downloadRes.body as any).pipe === 'function'
+              ? (downloadRes.body as any)
+              : Readable.fromWeb(downloadRes.body as any);
+            bodyStream.pipe(fileStream);
+            fileStream.on('finish', () => {
+              try {
+                if (fs.existsSync(tempPath) && fs.statSync(tempPath).size > 1024 * 1024) {
                   fs.renameSync(tempPath, cachedFilePath);
                   console.log(`🎬 Vídeo do Google Drive salvo em cache local: drive_${fileId}.mp4`);
-                } catch {}
-              });
-            }
+                } else if (fs.existsSync(tempPath)) {
+                  fs.unlinkSync(tempPath);
+                }
+              } catch {}
+            });
           }
         }).catch(() => {});
       }

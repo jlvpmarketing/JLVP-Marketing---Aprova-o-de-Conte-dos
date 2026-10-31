@@ -30,7 +30,7 @@ interface PostApprovalCardProps {
   onRequestChanges?: (post: PostContent) => void;
   onEditPost?: (post: PostContent) => void;
   onPreviewPost?: (post: PostContent) => void;
-  onOpenDetail?: (post: PostContent) => void;
+  onOpenDetail?: (post: PostContent, slideIndex?: number) => void;
 }
 
 export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
@@ -59,7 +59,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
 
   const handleCardClick = () => {
     if (onOpenDetail) {
-      onOpenDetail(post);
+      onOpenDetail(post, activeSlide);
     } else if (onPreviewPost) {
       onPreviewPost(post);
     }
@@ -171,7 +171,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
               const currentMedia = resolvedUrls[activeSlide] || resolvedUrls[0];
               if (isDriveVideoUrl(currentMedia)) {
                 return (
-                  <div className="w-full h-full relative bg-slate-950 flex items-center justify-center">
+                  <div key={`card_drive_${activeSlide}_${currentMedia}`} className="w-full h-full relative bg-slate-950 flex items-center justify-center">
                     <img
                       src={`https://drive.google.com/thumbnail?id=${extractDriveFileId(currentMedia)}&sz=w800`}
                       alt={post.title}
@@ -191,18 +191,28 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
               }
               if (isVideoUrl(currentMedia)) {
                 return (
-                  <video
-                    src={currentMedia}
-                    className="w-full h-full object-cover"
-                    muted
-                    playsInline
-                    loop
-                    autoPlay
-                  />
+                  <div key={`card_vid_container_${activeSlide}`} className="w-full h-full relative bg-black flex items-center justify-center">
+                    <video
+                      key={`card_video_${activeSlide}_${currentMedia}`}
+                      src={currentMedia}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                      loop
+                      autoPlay
+                    />
+                    <div className="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
+                      <div className="bg-black/75 text-white text-[10px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md border border-white/20">
+                        <Play className="w-3 h-3 fill-amber-400 text-amber-400" />
+                        <span>Vídeo (#{activeSlide + 1})</span>
+                      </div>
+                    </div>
+                  </div>
                 );
               }
               return (
                 <img
+                  key={`card_img_${activeSlide}_${currentMedia}`}
                   src={currentMedia}
                   alt={post.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

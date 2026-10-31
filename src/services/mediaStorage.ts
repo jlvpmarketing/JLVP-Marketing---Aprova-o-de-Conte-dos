@@ -171,6 +171,16 @@ export const mediaStorage = {
       return cachedData;
     }
 
+    // Check if server disk has this media file
+    try {
+      const serverMediaUrl = `/api/media/${mediaId}.mp4`;
+      const checkRes = await fetch(serverMediaUrl, { method: 'HEAD' });
+      if (checkRes.ok) {
+        resolvedUrlCache.set(url, serverMediaUrl);
+        return serverMediaUrl;
+      }
+    } catch {}
+
     // Fetch chunks from Firestore with timeout fallback
     try {
       const chunksQuery = query(
@@ -197,6 +207,6 @@ export const mediaStorage = {
       console.warn('Erro ao buscar partes da mídia do Firestore:', err);
     }
 
-    return url;
+    return '';
   }
 };

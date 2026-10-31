@@ -38,9 +38,9 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
   // High performance endpoints
   const serverStreamUrl = `/api/drive-video/${fileId}`;
   const directGoogleStreamUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
-  const embedUrl = `https://drive.google.com/file/d/${fileId}/preview`;
-  const cleanDriveViewUrl = `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+  const cleanDriveViewUrl = url.includes('drive.google.com') ? url : `https://drive.google.com/file/d/${fileId}/view`;
   const cleanDrivePreviewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+  const embedUrl = cleanDrivePreviewUrl;
 
   // Default to native clean player (controls strictly at the bottom, zero overlays in the middle)
   const [playerMode, setPlayerMode] = useState<'native' | 'iframe'>('native');

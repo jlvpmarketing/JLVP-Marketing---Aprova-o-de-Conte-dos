@@ -362,6 +362,16 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       const finalMediaUrls = await Promise.all(
         mediaUrls.map(async (url) => {
           if (!url) return '';
+          // If legacy chunkref, attempt to resolve first
+          if (url.startsWith('video_chunkref:') || url.startsWith('chunkref:')) {
+            const resolved = await mediaStorage.resolveMedia(url);
+            if (resolved && resolved.startsWith('data:')) {
+              url = resolved;
+            } else if (resolved && (resolved.startsWith('http') || resolved.startsWith('/api/media/'))) {
+              return resolved;
+            }
+          }
+
           // If already a Google Drive link or server URL, keep as is
           if (url.startsWith('/api/media/') || url.startsWith('http://') || url.startsWith('https://')) {
             return url;

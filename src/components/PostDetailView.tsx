@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { PostContent, AgencyUser } from '../types';
-import { getDriveEmbedUrl } from '../utils/drivePlayer';
+import { getDriveEmbedUrl, extractDriveFileId } from '../utils/drivePlayer';
 import { DriveVideoPlayer } from './DriveVideoPlayer';
 import { getContentTypeInfo, isVideoUrl, isDriveVideoUrl } from '../utils/contentTypeHelper';
 import { useResolvedMedia } from '../hooks/useResolvedMedia';
@@ -27,6 +27,7 @@ import {
 
 interface PostDetailViewProps {
   post: PostContent | null;
+  initialSlide?: number;
   onClose: () => void;
   onRequestChanges?: (post: PostContent) => void;
   role?: 'agency' | 'client';
@@ -35,6 +36,7 @@ interface PostDetailViewProps {
 
 export const PostDetailView: React.FC<PostDetailViewProps> = ({
   post,
+  initialSlide = 0,
   onClose,
   onRequestChanges,
   role = 'client',
@@ -52,9 +54,13 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
   } = useApp();
 
   const { resolvedUrls } = useResolvedMedia(post?.mediaUrls || []);
-  const [activeSlide, setActiveSlide] = useState(0);
+  const [activeSlide, setActiveSlide] = useState(initialSlide || 0);
   const [newComment, setNewComment] = useState('');
   const [approving, setApproving] = useState(false);
+
+  React.useEffect(() => {
+    setActiveSlide(initialSlide || 0);
+  }, [post?.id, initialSlide]);
 
   if (!post) return null;
 
@@ -202,10 +208,11 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                       const currentMedia = resolvedUrls[activeSlide] || resolvedUrls[0];
                       if (isDriveVideoUrl(currentMedia)) {
                         return (
-                          <div className="w-full h-full relative">
+                          <div className="w-full h-full relative" key={`detail_drive_${activeSlide}`}>
                             <DriveVideoPlayer
+                              key={`drive_${activeSlide}_${extractDriveFileId(currentMedia)}`}
                               url={currentMedia}
-                              title={`${post.title} - Slide ${activeSlide + 1}`}
+                              title={`${post.title} - Lâmina ${activeSlide + 1}`}
                               aspectClass={contentInfo.aspectClass}
                             />
                           </div>
@@ -213,16 +220,21 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                       }
                       if (isVideoUrl(currentMedia)) {
                         return (
-                          <video
-                            src={currentMedia}
-                            controls
-                            playsInline
-                            className="w-full h-full object-contain"
-                          />
+                          <div className="w-full h-full relative flex items-center justify-center bg-black" key={`detail_video_${activeSlide}`}>
+                            <video
+                              key={`video_${activeSlide}_${currentMedia}`}
+                              src={currentMedia}
+                              controls
+                              playsInline
+                              autoPlay
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
                         );
                       }
                       return (
                         <img
+                          key={`img_${activeSlide}_${currentMedia}`}
                           src={currentMedia}
                           alt={post.title}
                           className="w-full h-full object-cover"
@@ -237,7 +249,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                           type="button"
                           onClick={() => setActiveSlide(prev => Math.max(0, prev - 1))}
                           disabled={activeSlide === 0}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 text-white hover:bg-black/90 disabled:opacity-20 transition-opacity"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/70 text-white hover:bg-black/95 disabled:opacity-20 transition-all z-30 shadow-lg cursor-pointer active:scale-95"
                           aria-label="Slide anterior"
                         >
                           <ChevronLeft className="w-5 h-5" />
@@ -246,26 +258,27 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                           type="button"
                           onClick={() => setActiveSlide(prev => Math.min(resolvedUrls.length - 1, prev + 1))}
                           disabled={activeSlide === resolvedUrls.length - 1}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/60 text-white hover:bg-black/90 disabled:opacity-20 transition-opacity"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/70 text-white hover:bg-black/95 disabled:opacity-20 transition-all z-30 shadow-lg cursor-pointer active:scale-95"
                           aria-label="Próximo slide"
                         >
                           <ChevronRight className="w-5 h-5" />
                         </button>
 
-                        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-30 pointer-events-auto">
                           {resolvedUrls.map((_, i) => (
                             <button
                               key={i}
                               type="button"
                               onClick={() => setActiveSlide(i)}
-                              className={`h-2 rounded-full transition-all ${
-                                i === activeSlide ? 'bg-white w-6' : 'bg-white/50 w-2'
+                              className={`h-2 rounded-full transition-all cursor-pointer ${
+                                i === activeSlide ? 'bg-white w-6 shadow-sm' : 'bg-white/50 w-2 hover:bg-white/80'
                               }`}
+                              aria-label={`Ir para lâmina ${i + 1}`}
                             />
                           ))}
                         </div>
 
-                        <span className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-mono bg-black/75 text-white backdrop-blur-xs flex items-center gap-1.5">
+                        <span className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-mono bg-black/80 text-white backdrop-blur-xs flex items-center gap-1.5 z-30 shadow-sm border border-white/10">
                           <Layers className="w-3.5 h-3.5" />
                           Lâmina {activeSlide + 1} de {resolvedUrls.length}
                         </span>

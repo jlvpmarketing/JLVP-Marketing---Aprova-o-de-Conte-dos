@@ -58,6 +58,7 @@ export const ClientDetailPage: React.FC = () => {
   const [editingClientOpen, setEditingClientOpen] = useState(false);
   const [chatPost, setChatPost] = useState<PostContent | null>(null);
   const [detailPost, setDetailPost] = useState<PostContent | null>(null);
+  const [detailSlide, setDetailSlide] = useState<number>(0);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [clientChatOpen, setClientChatOpen] = useState(false);
 
@@ -65,12 +66,22 @@ export const ClientDetailPage: React.FC = () => {
   const clientProjects = projects.filter(p => p.clientId === client?.id);
 
   // Active project folder or all client posts
-  const isViewingAll = selectedProjectId === 'all';
+  const isViewingAll = selectedProjectId === 'all' || !selectedProjectId;
   const activeProject = isViewingAll ? null : (clientProjects.find(p => p.id === selectedProjectId) || clientProjects[0]);
 
   const clientPosts = posts.filter(p => {
     if (p.clientId !== client?.id) return false;
-    if (activeProject) return p.projectId === activeProject.id;
+    if (isViewingAll) return true;
+    if (activeProject) {
+      // Matches active project
+      if (p.projectId === activeProject.id) return true;
+      // If the client only has 1 project folder, show all posts of this client so none are lost
+      if (clientProjects.length <= 1) return true;
+      // If the post has an orphaned projectId that doesn't match any existing project of this client, keep it visible
+      const matchesAnyClientProject = clientProjects.some(cp => cp.id === p.projectId);
+      if (!matchesAnyClientProject) return true;
+      return false;
+    }
     return true;
   });
 
@@ -234,7 +245,7 @@ export const ClientDetailPage: React.FC = () => {
 
         {/* Compact Projects Grid / Pills */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {clientProjects.length > 1 && (
+          {clientProjects.length > 0 && (
             <div
               onClick={() => setSelectedProjectId('all')}
               className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between text-xs ${
@@ -538,6 +549,7 @@ export const ClientDetailPage: React.FC = () => {
       {/* Publication Page Modal (Full Media 1080x1350/9:16, Day, Hour, Caption, Comments & Agency controls) */}
       <PostDetailView
         post={detailPost}
+        initialSlide={detailSlide}
         onClose={() => setDetailPost(null)}
         role="agency"
         onEditPost={p => {

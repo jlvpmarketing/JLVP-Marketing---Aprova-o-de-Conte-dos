@@ -80,6 +80,7 @@ export const ClientPortalView: React.FC = () => {
 
   // Modals / Detail View
   const [detailPost, setDetailPost] = useState<PostContent | null>(null);
+  const [detailSlide, setDetailSlide] = useState(0);
   const [chatPost, setChatPost] = useState<PostContent | null>(null);
   const [changesPost, setChangesPost] = useState<PostContent | null>(null);
   const [projectChatOpen, setProjectChatOpen] = useState(false);
@@ -188,8 +189,9 @@ export const ClientPortalView: React.FC = () => {
     }
   };
 
-  const openDetail = (p: PostContent) => {
+  const openDetail = (p: PostContent, slideIndex: number = 0) => {
     try { window.history.pushState({ appPage: 'detail' }, ''); } catch {}
+    setDetailSlide(slideIndex);
     setDetailPost(p);
   };
 
@@ -667,6 +669,7 @@ export const ClientPortalView: React.FC = () => {
       {/* Dedicated Post Detail View (Opens on card click, showing day, hour, full caption, and actions) */}
       <PostDetailView
         post={detailPost}
+        initialSlide={detailSlide}
         onClose={() => setDetailPost(null)}
         onRequestChanges={p => {
           setDetailPost(null);
