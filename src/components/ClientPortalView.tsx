@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { PostContent } from '../types';
+import { PostContent, FolderProject, Client } from '../types';
 import { PostApprovalCard } from './PostApprovalCard';
 import { PostDetailView } from './PostDetailView';
 import { CalendarView } from './CalendarView';
@@ -37,21 +37,74 @@ export const ClientPortalView: React.FC = () => {
     availableMonths
   } = useApp();
 
-  // Find the exact project matching this exclusive link key
-  const currentProject = projects.find(p => p.clientAccessKey === portalProjectKey);
-  const client = currentProject ? clients.find(c => c.id === currentProject.clientId) : null;
+  // Safely extract project key from context or URL search params
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const effectiveProjectKey = (portalProjectKey || urlParams?.get('project') || '').trim();
+
+  // Find matching project in context (by key or id, case-insensitive)
+  const matchedProject = projects.find(p => 
+    p.clientAccessKey?.trim().toLowerCase() === effectiveProjectKey.toLowerCase() ||
+    p.id?.trim().toLowerCase() === effectiveProjectKey.toLowerCase()
+  );
+  const matchedClient = matchedProject ? clients.find(c => c.id === matchedProject.clientId) : null;
+
+  // Local fallback state loaded directly from server /api/sync if context is loading
+  const [serverData, setServerData] = useState<{
+    project: FolderProject | null;
+    client: Client | null;
+    posts: PostContent[];
+  } | null>(null);
+  const [syncFailed, setSyncFailed] = useState(false);
+
+  const fetchDirectServerData = () => {
+    fetch('/api/sync')
+      .then(res => res.json())
+      .then(db => {
+        if (db && db.projects) {
+          const foundProj = db.projects.find((p: any) => 
+            p.clientAccessKey?.trim().toLowerCase() === effectiveProjectKey.toLowerCase() ||
+            p.id?.trim().toLowerCase() === effectiveProjectKey.toLowerCase()
+          );
+          const foundCli = foundProj ? db.clients?.find((c: any) => c.id === foundProj.clientId) : null;
+          const foundPosts = foundProj ? (db.posts || []).filter((post: any) => 
+            post.projectId === foundProj.id || (foundCli && post.clientId === foundCli.id)
+          ) : [];
+
+          if (foundProj && foundCli) {
+            setServerData({
+              project: foundProj,
+              client: foundCli,
+              posts: foundPosts
+            });
+            setSyncFailed(false);
+          } else {
+            setSyncFailed(true);
+          }
+        }
+      })
+      .catch(() => setSyncFailed(true));
+  };
+
+  useEffect(() => {
+    if (matchedProject && matchedClient) return;
+    fetchDirectServerData();
+  }, [matchedProject, matchedClient, effectiveProjectKey]);
+
+  const currentProject = matchedProject || serverData?.project || null;
+  const client = matchedClient || serverData?.client || null;
   const clientProjects = client ? projects.filter(p => p.clientId === client.id) : [];
 
-  // Loading timeout threshold (gives Firestore up to 15s before offering retry)
+  // Loading timeout threshold: after 3.5s offers instant reconnect
   const [loadTimeout, setLoadTimeout] = useState(false);
 
   useEffect(() => {
     if (currentProject && client) {
+      setLoadTimeout(false);
       return;
     }
     const timer = setTimeout(() => {
       setLoadTimeout(true);
-    }, 12000);
+    }, 3500);
     return () => clearTimeout(timer);
   }, [currentProject, client]);
 
@@ -59,7 +112,8 @@ export const ClientPortalView: React.FC = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string>('all');
 
   // All client posts matching the selected folder or project (without month filter)
-  const clientPosts = posts.filter(p => {
+  const effectivePostsList = (posts && posts.length > 0) ? posts : (serverData?.posts || []);
+  const clientPosts = effectivePostsList.filter(p => {
     if (selectedFolderId !== 'all') {
       return p.projectId === selectedFolderId;
     }
@@ -261,7 +315,14 @@ export const ClientPortalView: React.FC = () => {
             <div className="pt-2 flex flex-col gap-2 w-full animate-in fade-in">
               <button
                 type="button"
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  fetchDirectServerData();
+                  setTimeout(() => {
+                    if (!currentProject || !client) {
+                      window.location.reload();
+                    }
+                  }, 600);
+                }}
                 className="w-full py-2.5 bg-white text-slate-900 font-bold text-xs rounded-xl hover:bg-slate-100 transition-colors cursor-pointer shadow-sm"
               >
                 Recarregar Projeto

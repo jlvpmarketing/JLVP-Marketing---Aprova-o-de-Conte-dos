@@ -214,6 +214,9 @@ async function startServer() {
           'Accept-Ranges': 'bytes',
           'Content-Length': chunksize,
           'Content-Type': 'video/mp4',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Range, Accept-Ranges',
+          'Cache-Control': 'public, max-age=86400',
         });
         return file.pipe(res);
       } else {
@@ -221,6 +224,9 @@ async function startServer() {
           'Content-Length': fileSize,
           'Content-Type': 'video/mp4',
           'Accept-Ranges': 'bytes',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Range, Accept-Ranges',
+          'Cache-Control': 'public, max-age=86400',
         });
         return fs.createReadStream(cachedFilePath).pipe(res);
       }

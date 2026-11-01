@@ -375,8 +375,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // 1. Initial immediate sync with server storage (/api/sync)
     serverSync.fetchDatabase().then(serverDb => {
       if (serverDb) {
-        if (serverDb.clients && serverDb.clients.length > 0) setClients(serverDb.clients);
-        if (serverDb.projects && serverDb.projects.length > 0) setProjects(serverDb.projects);
+        if (serverDb.clients && serverDb.clients.length > 0) {
+          setClients(serverDb.clients);
+          try { localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(serverDb.clients)); } catch {}
+        }
+        if (serverDb.projects && serverDb.projects.length > 0) {
+          setProjects(serverDb.projects);
+          try { localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(serverDb.projects)); } catch {}
+        }
         if (serverDb.users && serverDb.users.length > 0) setUsers(serverDb.users);
         if (serverDb.posts && serverDb.posts.length > 0) {
           const cleanServerPosts = serverDb.posts.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
@@ -461,13 +467,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const unsubClients = firestoreSync.subscribeToClients((remoteClients) => {
       if (remoteClients && remoteClients.length > 0) {
-        setClients(remoteClients);
+        setClients(prev => {
+          const remoteMap = new Map(remoteClients.map(c => [c.id, c]));
+          const missing = prev.filter(c => !remoteMap.has(c.id));
+          return [...remoteClients, ...missing];
+        });
       }
     });
 
     const unsubProjects = firestoreSync.subscribeToProjects((remoteProjects) => {
       if (remoteProjects && remoteProjects.length > 0) {
-        setProjects(remoteProjects);
+        setProjects(prev => {
+          const remoteMap = new Map(remoteProjects.map(p => [p.id, p]));
+          const missing = prev.filter(p => !remoteMap.has(p.id));
+          return [...remoteProjects, ...missing];
+        });
       }
     });
 

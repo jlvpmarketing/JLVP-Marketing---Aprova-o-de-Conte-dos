@@ -37,8 +37,7 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
 
   // High performance endpoints
   const serverStreamUrl = `/api/drive-video/${fileId}`;
-  const directGoogleStreamUrl = `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`;
-  const cleanDriveViewUrl = url.includes('drive.google.com') ? url : `https://drive.google.com/file/d/${fileId}/view`;
+  const cleanDriveViewUrl = `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
   const cleanDrivePreviewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
   const embedUrl = cleanDrivePreviewUrl;
 
@@ -46,6 +45,14 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
   const [playerMode, setPlayerMode] = useState<'native' | 'iframe'>('native');
   const [videoError, setVideoError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const retryNativeVideo = () => {
+    setVideoError(false);
+    if (videoRef.current) {
+      videoRef.current.src = `${serverStreamUrl}?t=${Date.now()}`;
+      videoRef.current.load();
+    }
+  };
 
   // Enter native hardware full screen (lets phone native player take over cleanly)
   const handleToggleFullscreen = () => {
@@ -97,7 +104,10 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
           {/* Toggle Native / Iframe mode */}
           <button
             type="button"
-            onClick={() => setPlayerMode(prev => prev === 'native' ? 'iframe' : 'native')}
+            onClick={() => {
+              setVideoError(false);
+              setPlayerMode(prev => prev === 'native' ? 'iframe' : 'native');
+            }}
             className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/80 hover:bg-black text-sky-300 hover:text-sky-200 backdrop-blur-md border border-sky-400/30 flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
             title="Alternar entre Player Nativo (sem botões no meio) e Embutido"
           >
@@ -132,24 +142,51 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
 
       {/* Main Video Display Area */}
       <div className="relative w-full h-full flex items-center justify-center bg-black">
-        {playerMode === 'native' && !videoError ? (
-          <video
-            ref={videoRef}
-            src={serverStreamUrl}
-            controls
-            playsInline
-            controlsList="nodownload"
-            className="w-full h-full object-contain bg-black"
-            onError={() => {
-              // Try direct Google stream with confirm=t before falling back to iframe
-              if (videoRef.current && videoRef.current.src !== directGoogleStreamUrl) {
-                videoRef.current.src = directGoogleStreamUrl;
-              } else {
+        {playerMode === 'native' ? (
+          videoError ? (
+            <div className="w-full h-full min-h-[250px] p-6 flex flex-col items-center justify-center text-center bg-slate-950 text-white space-y-4">
+              <Video className="w-12 h-12 text-amber-400/80 animate-pulse" />
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-white">Carregamento do Vídeo</p>
+                <p className="text-xs text-slate-400 max-w-xs">
+                  O vídeo está sendo preparado pelo servidor. Você pode tentar novamente ou alternar para o modo embutido.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={retryNativeVideo}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Play className="w-3.5 h-3.5 fill-white" />
+                  <span>Tentar Novamente (Player Limpo)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVideoError(false);
+                    setPlayerMode('iframe');
+                  }}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-xl text-xs font-semibold transition-all border border-slate-700 active:scale-95 cursor-pointer"
+                >
+                  Assistir via Iframe
+                </button>
+              </div>
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              src={serverStreamUrl}
+              controls
+              playsInline
+              controlsList="nodownload"
+              className="w-full h-full object-contain bg-black"
+              onError={() => {
+                console.warn('Erro no stream do vídeo');
                 setVideoError(true);
-                setPlayerMode('iframe');
-              }
-            }}
-          />
+              }}
+            />
+          )
         ) : (
           <iframe
             ref={iframeRef}
