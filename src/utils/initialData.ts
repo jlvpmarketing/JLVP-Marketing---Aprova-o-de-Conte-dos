@@ -301,4 +301,15 @@ export const INITIAL_AUDIT_LOGS: AuditLogItem[] = [
     entityName: 'Card Informativo Horários',
     timestamp: '2026-10-27T11:00:00Z',
   },
+  {
+    id: 'log-6',
+    userId: 'user-owner',
+    userName: 'Paloma Garcia',
+    userRole: 'owner',
+    userEmail: 'jlvpmarketing@gmail.com',
+    action: 'comment_added',
+    details: 'Adicionou um comentário: "Ajuste na capa realizado com sucesso."',
+    entityName: 'Capa do Carrossel',
+    timestamp: '2026-10-28T09:30:00Z',
+  },
 ];

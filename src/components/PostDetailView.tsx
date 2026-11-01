@@ -22,7 +22,8 @@ import {
   Film,
   Sparkles,
   Edit3,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 
 interface PostDetailViewProps {
@@ -58,15 +59,20 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
   const [newComment, setNewComment] = useState('');
   const [approving, setApproving] = useState(false);
 
-  React.useEffect(() => {
-    setActiveSlide(initialSlide || 0);
-  }, [post?.id, initialSlide]);
+  const [playerMode, setPlayerMode] = useState<'native' | 'iframe'>('native');
 
   if (!post) return null;
 
   const client = clients.find(c => c.id === post.clientId);
   const project = projects.find(p => p.id === post.projectId);
   const contentInfo = getContentTypeInfo(post);
+
+  // Find effective video url if present anywhere in the post
+  const effectiveDriveUrl = post.driveVideoUrl || 
+    (resolvedUrls && resolvedUrls.find(u => isDriveVideoUrl(u))) ||
+    (post.mediaUrls && post.mediaUrls.find(u => isDriveVideoUrl(u)));
+
+  const isReelOrVideo = contentInfo.type === 'reel' || post.mediaType === 'drive_video' || post.mediaType === 'video' || Boolean(effectiveDriveUrl);
 
   // Format scheduled day and hour separately
   const dateObj = new Date(post.scheduledDate);
@@ -165,7 +171,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
           
           {/* SECTION 1: VISUALIZAÇÃO DO CONTEÚDO (Altura e Proporção Adaptativas) */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Visualização do Conteúdo
@@ -174,9 +180,23 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                   {contentInfo.label} ({contentInfo.sublabel})
                 </span>
               </div>
-              <span className="text-xs text-slate-400">
-                {post.mediaType === 'drive_video' ? 'Vídeo do Google Drive' : post.mediaType === 'carousel' ? 'Carrossel' : 'Arte'}
-              </span>
+              <div className="flex items-center gap-2">
+                {isReelOrVideo && (
+                  <button
+                    type="button"
+                    onClick={() => setPlayerMode(m => m === 'native' ? 'iframe' : 'native')}
+                    data-testid="switch-modal-view-mode"
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                    title="Alternar entre player nativo e iframe"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-sky-600" />
+                    <span>{playerMode === 'native' ? 'Modo Iframe' : 'Player Nativo'}</span>
+                  </button>
+                )}
+                <span className="text-xs text-slate-400">
+                  {contentInfo.type === 'reel' ? 'Reel / Vídeo' : post.mediaType === 'carousel' ? 'Carrossel' : 'Arte'}
+                </span>
+              </div>
             </div>
 
             {/* ADAPTIVE MEDIA CONTAINER:
@@ -187,21 +207,16 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
               <div
                 className={`relative w-full ${contentInfo.aspectClass} rounded-2xl overflow-hidden bg-slate-950 shadow-xl flex items-center justify-center border border-slate-800`}
               >
-                {(post.mediaType === 'drive_video' || Boolean(post.driveVideoUrl)) ? (
-                  post.driveVideoUrl ? (
-                    <div className="w-full h-full relative">
-                      <DriveVideoPlayer
-                        url={post.driveVideoUrl}
-                        title={post.title}
-                        aspectClass={contentInfo.aspectClass}
-                      />
-                    </div>
-                  ) : (
-                    <div className="p-10 text-center text-slate-400">
-                      <Video className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">Link de vídeo não disponível</p>
-                    </div>
-                  )
+                {(isReelOrVideo && effectiveDriveUrl) ? (
+                  <div className="w-full h-full relative" data-testid="detail-video-wrapper">
+                    <DriveVideoPlayer
+                      url={effectiveDriveUrl}
+                      title={post.title}
+                      aspectClass={contentInfo.aspectClass}
+                      forceMode={playerMode}
+                      onModeChange={setPlayerMode}
+                    />
+                  </div>
                 ) : resolvedUrls && resolvedUrls.length > 0 ? (
                   <div className="relative w-full h-full flex items-center justify-center bg-black">
                     {(() => {
@@ -214,6 +229,8 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                               url={currentMedia}
                               title={`${post.title} - Lâmina ${activeSlide + 1}`}
                               aspectClass={contentInfo.aspectClass}
+                              forceMode={playerMode}
+                              onModeChange={setPlayerMode}
                             />
                           </div>
                         );

@@ -384,6 +384,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           try { localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(serverDb.projects)); } catch {}
         }
         if (serverDb.users && serverDb.users.length > 0) setUsers(serverDb.users);
+        if (serverDb.auditLogs && serverDb.auditLogs.length > 0) {
+          setAuditLogs(serverDb.auditLogs);
+          try { localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(serverDb.auditLogs)); } catch {}
+        }
         if (serverDb.posts && serverDb.posts.length > 0) {
           const cleanServerPosts = serverDb.posts.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
           setPosts(prev => {

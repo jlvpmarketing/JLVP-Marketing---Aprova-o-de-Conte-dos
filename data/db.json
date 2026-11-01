@@ -106,6 +106,32 @@
   "posts": [
     {
       "comments": [],
+      "clientId": "cli-1793289562170",
+      "mediaUrls": [
+        "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing"
+      ],
+      "platforms": [
+        "reels",
+        "instagram_feed"
+      ],
+      "createdByUserName": "Paloma Garcia",
+      "approvedAt": "2026-11-01T14:39:55.920Z",
+      "status": "approved",
+      "approvedBy": "CCP2",
+      "title": "explore-test-123 Social Post - edited",
+      "scheduledDate": "2026-11-04T10:00",
+      "mediaType": "drive_video",
+      "createdByUserId": "user-owner",
+      "caption": "Explore test caption: A sample post for workflow verification. #exploretest",
+      "contentType": "reel",
+      "id": "post-1793543932507-xyxu93",
+      "updatedAt": "2026-11-01T14:55:59.169Z",
+      "createdAt": "2026-11-01T14:38:52.507Z",
+      "projectId": "proj-1793298881846",
+      "driveVideoUrl": "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing"
+    },
+    {
+      "comments": [],
       "createdAt": "2026-10-30T15:21:16.264Z",
       "clientId": "cli-1793289562170",
       "contentType": "carousel",
@@ -132,20 +158,23 @@
     },
     {
       "id": "post-1793299213372",
-      "mediaUrls": [],
+      "mediaUrls": [
+        "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing"
+      ],
       "caption": "Já pensou, o seu filho estudando na maior rede de ensino da Zona Oeste do Rio?\n\nSão mais de 29 unidades espalhadas por toda a região para estar sempre perto de você.\n\nAqui, nós acompanhamos cada etapa da jornada: desde os primeiros passos na Educação Infantil até a solidez do Ensino Médio.\n\nTudo isso com o respaldo do SAS Educação e a fluência de alto desempenho do PES English.\n\nPorque a gente sabe que o futuro não se espera, se constrói com estrutura, excelência e muito afeto.\n\nAcesse o link da bio e agende sua visita a uma de nossas unidades.",
       "createdByUserName": "Paloma Garcia",
       "clientId": "cli-1793289562170",
       "projectId": "proj-1793298881846",
       "contentType": "reel",
       "createdAt": "2026-10-29T18:40:13.372Z",
-      "driveVideoUrl": "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=drive_link",
+      "driveVideoUrl": "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing",
       "mediaType": "drive_video",
       "title": "Já pensou, o seu filho estudando na maior rede de ensino da zona oeste do Rio?",
       "status": "pending_approval",
-      "scheduledDate": "2026-11-02T17:00",
+      "scheduledDate": "2026-11-05T14:00",
       "createdByUserId": "user-owner",
       "platforms": [
+        "reels",
         "instagram_feed"
       ],
       "comments": []
@@ -199,5 +228,73 @@
     }
   ],
   "notifications": [],
-  "updatedAt": "2026-10-31T12:24:14.371Z"
+  "updatedAt": "2026-11-01T14:55:59.169Z",
+  "auditLogs": [
+    {
+      "id": "log-1",
+      "userId": "user-owner",
+      "userName": "Paloma Garcia",
+      "userRole": "owner",
+      "userEmail": "jlvpmarketing@gmail.com",
+      "action": "client_created",
+      "details": "Cadastrou o cliente \"Aroma & Grão Cafés Especiais\" no sistema.",
+      "entityName": "Aroma & Grão",
+      "timestamp": "2026-09-01T10:00:00Z"
+    },
+    {
+      "id": "log-2",
+      "userId": "user-manager",
+      "userName": "Camila Rocha",
+      "userRole": "manager",
+      "userEmail": "camila@studiopulse.com.br",
+      "action": "project_created",
+      "details": "Criou o projeto \"Lançamento Grãos Especiais Primavera 2026\" com link de aprovação.",
+      "entityName": "Lançamento Grãos Especiais",
+      "timestamp": "2026-10-10T11:00:00Z"
+    },
+    {
+      "id": "log-3",
+      "userId": "user-creator",
+      "userName": "Mariana Social Media",
+      "userRole": "creator",
+      "userEmail": "mariana@studiopulse.com.br",
+      "action": "post_created",
+      "details": "Adicionou o post carrossel \"Carrossel: Guia do Café Especial em 3 Passos\" para aprovação.",
+      "entityName": "Guia do Café Especial",
+      "timestamp": "2026-10-27T08:15:00Z"
+    },
+    {
+      "id": "log-4",
+      "userId": "client-marcos",
+      "userName": "Marcos Silveira (Cliente)",
+      "userRole": "viewer",
+      "userEmail": "marcos@aromagrao.com.br",
+      "action": "post_approved",
+      "details": "Aprovou o post \"Foto Estúdio: Lote Especial Serra da Mantiqueira\".",
+      "entityName": "Foto Estúdio Mantiqueira",
+      "timestamp": "2026-10-26T14:40:00Z"
+    },
+    {
+      "id": "log-5",
+      "userId": "client-marcos",
+      "userName": "Marcos Silveira (Cliente)",
+      "userRole": "viewer",
+      "userEmail": "marcos@aromagrao.com.br",
+      "action": "post_changes_requested",
+      "details": "Solicitou alteração: \"Trocar o horário de sábado no texto do card\".",
+      "entityName": "Card Informativo Horários",
+      "timestamp": "2026-10-27T11:00:00Z"
+    },
+    {
+      "id": "log-6",
+      "userId": "user-owner",
+      "userName": "Paloma Garcia",
+      "userRole": "owner",
+      "userEmail": "jlvpmarketing@gmail.com",
+      "action": "comment_added",
+      "details": "Adicionou um comentário: \"Ajuste na capa realizado com sucesso.\"",
+      "entityName": "Capa do Carrossel",
+      "timestamp": "2026-10-28T09:30:00Z"
+    }
+  ]
 }

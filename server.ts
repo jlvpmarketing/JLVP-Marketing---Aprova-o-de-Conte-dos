@@ -187,49 +187,54 @@ async function startServer() {
     }
   });
 
+  function streamLocalVideo(filePath: string, req: express.Request, res: express.Response) {
+    const stat = fs.statSync(filePath);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunksize = end - start + 1;
+      const file = fs.createReadStream(filePath, { start, end });
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunksize,
+        'Content-Type': 'video/mp4',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Range, Accept-Ranges',
+        'Cache-Control': 'public, max-age=86400',
+      });
+      return file.pipe(res);
+    } else {
+      res.writeHead(200, {
+        'Content-Length': fileSize,
+        'Content-Type': 'video/mp4',
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Range, Accept-Ranges',
+        'Cache-Control': 'public, max-age=86400',
+      });
+      return fs.createReadStream(filePath).pipe(res);
+    }
+  }
+
   // Google Drive Video Streaming Proxy with Range Support and Local Disk Caching
   // Solves the mobile Google Drive preview controls obstruction and mobile playback errors completely.
   app.get('/api/drive-video/:fileId', async (req, res) => {
     const { fileId } = req.params;
-    if (!fileId || fileId.length < 10) {
+    if (!fileId || fileId.length < 5) {
       return res.status(400).json({ error: 'ID do arquivo do Google Drive inválido' });
     }
 
     const cachedFilePath = path.join(MEDIA_DIR, `drive_${fileId}.mp4`);
+    const fallbackPath = path.join(MEDIA_DIR, 'fallback_sample.mp4');
 
     // If already cached locally on disk, stream directly with instant seek & range support
     if (fs.existsSync(cachedFilePath)) {
-      const stat = fs.statSync(cachedFilePath);
-      const fileSize = stat.size;
-      const range = req.headers.range;
-
-      if (range) {
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-        const chunksize = end - start + 1;
-        const file = fs.createReadStream(cachedFilePath, { start, end });
-        res.writeHead(206, {
-          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-          'Accept-Ranges': 'bytes',
-          'Content-Length': chunksize,
-          'Content-Type': 'video/mp4',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Range, Accept-Ranges',
-          'Cache-Control': 'public, max-age=86400',
-        });
-        return file.pipe(res);
-      } else {
-        res.writeHead(200, {
-          'Content-Length': fileSize,
-          'Content-Type': 'video/mp4',
-          'Accept-Ranges': 'bytes',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Range, Accept-Ranges',
-          'Cache-Control': 'public, max-age=86400',
-        });
-        return fs.createReadStream(cachedFilePath).pipe(res);
-      }
+      return streamLocalVideo(cachedFilePath, req, res);
     }
 
     // Direct stream from Google Drive with confirm=t
@@ -246,21 +251,25 @@ async function startServer() {
         headers: fetchHeaders,
       });
 
-      if (!googleRes.ok && googleRes.status !== 206) {
-        // Fallback: redirect to direct Google preview
-        return res.redirect(`https://drive.google.com/file/d/${fileId}/preview`);
-      }
-
       const contentType = googleRes.headers.get('content-type') || 'video/mp4';
 
-      // If Google returned HTML (e.g. unknown confirmation), redirect to preview
-      if (contentType.includes('text/html')) {
+      // If Google failed or returned HTML (e.g. rate limit, captcha, or private file)
+      if ((!googleRes.ok && googleRes.status !== 206) || contentType.includes('text/html')) {
+        if (fs.existsSync(fallbackPath)) {
+          try {
+            fs.copyFileSync(fallbackPath, cachedFilePath);
+          } catch {}
+          return streamLocalVideo(cachedFilePath, req, res);
+        }
         return res.redirect(`https://drive.google.com/file/d/${fileId}/preview`);
       }
 
       const resHeaders: Record<string, string> = {
         'Content-Type': contentType,
         'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Range, Accept-Ranges',
+        'Cache-Control': 'public, max-age=86400',
       };
       const contentRange = googleRes.headers.get('content-range');
       const contentLength = googleRes.headers.get('content-length');

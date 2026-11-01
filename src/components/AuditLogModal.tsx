@@ -15,7 +15,8 @@ import {
   Clock, 
   ShieldCheck,
   Calendar,
-  Download
+  Download,
+  RotateCcw
 } from 'lucide-react';
 
 const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
@@ -54,8 +55,22 @@ export const AuditLogModal: React.FC = () => {
 
   if (!isAuditModalOpen) return null;
 
+  const handleClearFilters = () => {
+    setSearch('');
+    setUserFilter('all');
+    setActionFilter('all');
+  };
+
+  const isFiltered = search.trim() !== '' || userFilter !== 'all' || actionFilter !== 'all';
+
   const filteredLogs = auditLogs.filter(log => {
-    if (userFilter !== 'all' && log.userId !== userFilter && log.userName !== userFilter) return false;
+    if (userFilter !== 'all') {
+      const uVal = userFilter.toLowerCase();
+      const matchId = log.userId.toLowerCase() === uVal;
+      const matchName = log.userName.toLowerCase() === uVal;
+      const matchContains = log.userName.toLowerCase().includes(uVal) || uVal.includes(log.userName.toLowerCase());
+      if (!matchId && !matchName && !matchContains) return false;
+    }
     if (actionFilter !== 'all' && log.action !== actionFilter) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -121,14 +136,26 @@ export const AuditLogModal: React.FC = () => {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar por nome, post, cliente ou detalhe..."
-              className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
+              data-testid="audit-search-input"
+              className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                data-testid="clear-search-btn"
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {/* User selector */}
           <select
             value={userFilter}
             onChange={e => setUserFilter(e.target.value)}
+            data-testid="audit-user-filter"
             className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand shrink-0"
           >
             <option value="all">Todos os Usuários</option>
@@ -141,6 +168,7 @@ export const AuditLogModal: React.FC = () => {
           <select
             value={actionFilter}
             onChange={e => setActionFilter(e.target.value)}
+            data-testid="audit-action-filter"
             className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand shrink-0"
           >
             <option value="all">Todas as Ações</option>
@@ -152,13 +180,35 @@ export const AuditLogModal: React.FC = () => {
             <option value="user_created">Usuários da Equipe</option>
             <option value="login">Logins & Sessões</option>
           </select>
+
+          {/* Clear filters button in bar */}
+          {isFiltered && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              data-testid="clear-filters-btn"
+              className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-2xs"
+              title="Limpar todos os filtros e ver todos os registros"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+              <span>Limpar Filtros</span>
+            </button>
+          )}
         </div>
 
         {/* Audit Timeline */}
         <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
           {filteredLogs.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-xs italic">
-              Nenhuma ação encontrada com os filtros selecionados.
+            <div className="py-12 text-center text-slate-500 text-xs italic space-y-3">
+              <p>Nenhuma ação encontrada com os filtros selecionados.</p>
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                data-testid="empty-clear-filters-btn"
+                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl font-bold transition-all cursor-pointer shadow-2xs"
+              >
+                Limpar Filtros (Restaurar todos os {auditLogs.length} registros)
+              </button>
             </div>
           ) : (
             filteredLogs.map(log => {
@@ -242,10 +292,22 @@ export const AuditLogModal: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <span className="text-xs text-slate-500">
-            Exibindo {filteredLogs.length} de {auditLogs.length} registros
-          </span>
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-500 font-medium">
+              Exibindo {filteredLogs.length} de {auditLogs.length} registros
+            </span>
+            {isFiltered && (
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                data-testid="footer-clear-filters-btn"
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+              >
+                Limpar filtros (restaurar todos os {auditLogs.length})
+              </button>
+            )}
+          </div>
 
           {currentUser?.role === 'owner' && auditLogs.length > 0 && (
             <button

@@ -1,4 +1,4 @@
-import { Client, FolderProject, PostContent, AgencyUser, NotificationItem } from '../types';
+import { Client, FolderProject, PostContent, AgencyUser, NotificationItem, AuditLogItem } from '../types';
 
 /**
  * Server Synchronization Service
@@ -52,6 +52,7 @@ export const serverSync = {
     posts?: PostContent[];
     users?: AgencyUser[];
     notifications?: NotificationItem[];
+    auditLogs?: AuditLogItem[];
     updatedAt?: string;
   } | null> {
     try {

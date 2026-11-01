@@ -11,6 +11,7 @@ import {
   Layers, 
   Image as ImageIcon 
 } from 'lucide-react';
+import { getContentTypeInfo } from '../utils/contentTypeHelper';
 
 interface CalendarViewProps {
   posts: PostContent[];
@@ -274,6 +275,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
                   }
 
                   const timeStr = post.scheduledDate ? post.scheduledDate.slice(11, 16) : '';
+                  const typeInfo = getContentTypeInfo(post);
 
                   return (
                     <button
@@ -288,8 +290,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
                       </div>
                       <div className="flex items-center justify-between text-[10px] opacity-75 font-mono mt-0.5">
                         <span>{timeStr || '10:00'}</span>
-                        <span className="uppercase text-[9px]">
-                          {post.mediaType === 'drive_video' ? 'Drive' : post.mediaType}
+                        <span
+                          data-testid={`post-type-label-${post.id}`}
+                          className="uppercase text-[9px] font-bold tracking-wider px-1 py-0.2 rounded bg-black/10 text-slate-800"
+                        >
+                          {typeInfo.label}
                         </span>
                       </div>
                     </button>
