@@ -721,7 +721,7 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
         onClose={() => setSelectedPostDetail(null)}
         role="agency"
         onEditPost={p => {
-          setSelectedPostDetail(null);
+          setSelectedPostDetail(p);
           openEditPostModal(p);
         }}
       />

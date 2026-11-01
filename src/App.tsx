@@ -179,7 +179,7 @@ const MainApp: React.FC = () => {
         onClose={() => setSelectedCalendarPost(null)}
         role="agency"
         onEditPost={p => {
-          setSelectedCalendarPost(null);
+          setSelectedCalendarPost(p);
           openEditPostModal(p);
         }}
       />

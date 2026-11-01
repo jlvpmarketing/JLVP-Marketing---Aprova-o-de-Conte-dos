@@ -34,6 +34,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
 
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
+  React.useEffect(() => {
+    if (posts && posts.length > 0) {
+      const targetPosts = filterStatus === 'all' ? posts : posts.filter(p => p.status === filterStatus);
+      const hasPostsInMonth = targetPosts.some(p => {
+        if (!p.scheduledDate) return false;
+        const d = new Date(p.scheduledDate);
+        return d.getFullYear() === currentDate.getFullYear() && d.getMonth() === currentDate.getMonth();
+      });
+      if (!hasPostsInMonth) {
+        const valid = targetPosts.filter(p => p.scheduledDate && !isNaN(new Date(p.scheduledDate).getTime()));
+        if (valid.length > 0) {
+          const sorted = [...valid].sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime());
+          const d = new Date(sorted[0].scheduledDate);
+          setCurrentDate(new Date(d.getFullYear(), d.getMonth(), 1));
+        }
+      }
+    }
+  }, [posts, filterStatus]);
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
@@ -178,6 +197,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
               <button
                 key={f.id}
                 onClick={() => setFilterStatus(f.id)}
+                data-testid={`calendar-filter-${f.id}`}
                 className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                   filterStatus === f.id
                     ? 'bg-white text-slate-900 shadow-2xs font-semibold'

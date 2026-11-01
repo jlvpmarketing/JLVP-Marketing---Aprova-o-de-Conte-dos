@@ -11,7 +11,9 @@ import {
   ChevronRight,
   UserPlus,
   LogIn,
-  History
+  History,
+  Calendar as CalendarIcon,
+  Bell
 } from 'lucide-react';
 
 interface MobileHeaderProps {
@@ -23,16 +25,19 @@ interface MobileHeaderProps {
 export const MobileHeader: React.FC<MobileHeaderProps> = ({
   onOpenNewClient,
   onOpenThemeCustomizer,
+  onOpenNotifications,
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { 
     agencyConfig, 
     clients, 
-    agencyPage, 
+    agencyPage,
+    setAgencyPage,
     openClientDetailPage,
     openHome,
     selectedClientId,
     currentUser,
+    notifications,
     setIsLoginModalOpen,
     setIsTeamModalOpen,
     setIsAuditModalOpen,
@@ -44,10 +49,26 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
     setDrawerOpen(false);
   };
 
+  const handleNavigateCalendar = () => {
+    setAgencyPage('calendar');
+    setDrawerOpen(false);
+  };
+
+  const handleNavigateNotifications = () => {
+    if (onOpenNotifications) {
+      onOpenNotifications();
+    } else {
+      setAgencyPage('notifications');
+    }
+    setDrawerOpen(false);
+  };
+
   const handleSelectClient = (clientId: string) => {
     openClientDetailPage(clientId);
     setDrawerOpen(false);
   };
+
+  const unreadNotifsCount = notifications.filter(n => !n.read).length;
 
   return (
     <div className="lg:hidden sticky top-0 z-40 bg-white border-b border-slate-200">
@@ -55,6 +76,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
         {/* Hamburger button */}
         <button
           onClick={() => setDrawerOpen(true)}
+          data-testid="mobile-hamburger-btn"
           className="p-2 -ml-2 text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           aria-label="Abrir Menu Lateral"
         >
@@ -134,6 +156,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
 
                 <button
                   onClick={handleNavigateHome}
+                  data-testid="mobile-nav-home"
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     agencyPage === 'home' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
                   }`}
@@ -142,12 +165,44 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                   <span>Início (Visão Geral)</span>
                 </button>
 
+                {/* Calendário Geral */}
+                <button
+                  onClick={handleNavigateCalendar}
+                  data-testid="mobile-nav-calendar"
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    agencyPage === 'calendar' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <CalendarIcon className="w-4 h-4 text-emerald-600" />
+                  <span>Calendário Geral</span>
+                </button>
+
+                {/* Central de Notificações */}
+                <button
+                  onClick={handleNavigateNotifications}
+                  data-testid="mobile-nav-notifications"
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    agencyPage === 'notifications' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Bell className="w-4 h-4 text-amber-500" />
+                    <span>Central de Notificações</span>
+                  </div>
+                  {unreadNotifsCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white">
+                      {unreadNotifsCount}
+                    </span>
+                  )}
+                </button>
+
                 {/* Adicionar Responsáveis */}
                 <button
                   onClick={() => {
                     setDrawerOpen(false);
                     setIsTeamModalOpen(true);
                   }}
+                  data-testid="mobile-nav-team"
                   className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
@@ -165,6 +220,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     setDrawerOpen(false);
                     setIsLoginModalOpen(true);
                   }}
+                  data-testid="mobile-nav-login"
                   className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
@@ -180,6 +236,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
                     setDrawerOpen(false);
                     setIsAuditModalOpen(true);
                   }}
+                  data-testid="mobile-nav-audit"
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
                 >
                   <History className="w-4 h-4 text-slate-500" />
@@ -188,7 +245,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
               </div>
 
               {/* Clientes section */}
-              <div className="space-y-1 pt-3 border-t border-slate-100">
+              <div className="space-y-1 pt-3 border-t border-slate-100" data-testid="mobile-nav-clients">
                 <div className="flex items-center justify-between px-2 mb-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     Páginas dos Clientes ({clients.length})
@@ -276,6 +333,55 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           <div className="flex-1" onClick={() => setDrawerOpen(false)} />
         </div>
       )}
+
+      {/* Mobile Fixed Bottom Navigation Bar */}
+      <nav data-testid="mobile-bottom-nav" className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 flex items-center justify-around shadow-lg">
+        <button
+          type="button"
+          onClick={() => setAgencyPage('home')}
+          data-testid="mobile-bottom-home"
+          className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors ${
+            agencyPage === 'home' ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Home className="w-4 h-4" />
+          <span>Início</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setAgencyPage('calendar')}
+          data-testid="mobile-bottom-calendar"
+          className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors ${
+            agencyPage === 'calendar' ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <CalendarIcon className="w-4 h-4" />
+          <span>Calendário</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleNavigateNotifications}
+          data-testid="mobile-bottom-notifs"
+          className={`flex flex-col items-center gap-1 text-[11px] font-bold transition-colors relative ${
+            agencyPage === 'notifications' ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Bell className="w-4 h-4" />
+          <span>Notificações</span>
+          {unreadNotifsCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-rose-500" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          data-testid="mobile-bottom-menu"
+          className="flex flex-col items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-700 transition-colors"
+        >
+          <Menu className="w-4 h-4" />
+          <span>Menu</span>
+        </button>
+      </nav>
     </div>
   );
 };

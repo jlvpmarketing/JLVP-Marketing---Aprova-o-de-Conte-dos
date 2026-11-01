@@ -101,9 +101,66 @@
       "id": "proj-1793298881846",
       "clientAccessKey": "outubro-rvov",
       "supportDocs": []
+    },
+    {
+      "id": "proj-barros-1",
+      "clientId": "cli-1793289643785",
+      "name": "Campanha Novembro 2026",
+      "description": "Pasta de publicações e demandas do cliente",
+      "status": "active",
+      "clientAccessKey": "barros-nov-2026",
+      "createdAt": "2026-11-01T10:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "supportDocs": []
+    },
+    {
+      "id": "proj-mourao-1",
+      "clientId": "cli-1793289702061",
+      "name": "Álbuns e Ensaios 2026",
+      "description": "Pasta de publicações e demandas do cliente",
+      "status": "active",
+      "clientAccessKey": "mourao-nov-2026",
+      "createdAt": "2026-11-01T10:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "supportDocs": []
+    },
+    {
+      "id": "proj-riviera-1",
+      "clientId": "cli-1793289752289",
+      "name": "Eventos e Festas 2026",
+      "description": "Pasta de publicações e demandas do cliente",
+      "status": "active",
+      "clientAccessKey": "riviera-nov-2026",
+      "createdAt": "2026-11-01T10:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "supportDocs": []
     }
   ],
   "posts": [
+    {
+      "projectId": "proj-1793298881846",
+      "updatedAt": "2026-11-01T15:14:55.756Z",
+      "caption": "QA test reel submitted for approval. Please review this video post.",
+      "clientId": "cli-1793289562170",
+      "driveVideoUrl": "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing",
+      "contentType": "reel",
+      "createdByUserName": "Paloma Garcia",
+      "id": "post-1793545935875-653xur",
+      "scheduledDate": "2026-11-04T10:00",
+      "platforms": [
+        "instagram_feed"
+      ],
+      "createdByUserId": "user-owner",
+      "createdAt": "2026-11-01T15:12:15.875Z",
+      "title": "QA Reel Video Drive Review",
+      "mediaType": "drive_video",
+      "status": "pending_approval",
+      "mediaUrls": [],
+      "comments": []
+    },
     {
       "comments": [],
       "clientId": "cli-1793289562170",
@@ -139,7 +196,7 @@
       "platforms": [
         "instagram_feed"
       ],
-      "status": "pending_approval",
+      "status": "changes_requested",
       "title": "TESTE",
       "projectId": "proj-1793298881846",
       "caption": "",
@@ -200,6 +257,222 @@
       ],
       "scheduledDate": "2026-10-30T17:00",
       "status": "pending_approval"
+    },
+    {
+      "id": "post-cli-1793289643785-pending",
+      "clientId": "cli-1793289643785",
+      "projectId": "proj-barros-1",
+      "title": "Publicação Programada Novembro",
+      "caption": "Conteúdo institucional preparado para aprovação rápida do cliente.",
+      "contentType": "static",
+      "mediaType": "image",
+      "mediaUrls": [
+        "/api/media/sample_slide1.jpg"
+      ],
+      "platforms": [
+        "instagram_feed"
+      ],
+      "status": "pending_approval",
+      "scheduledDate": "2026-11-06T10:00",
+      "createdAt": "2026-11-01T12:00:00.000Z",
+      "updatedAt": "2026-11-01T12:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "comments": []
+    },
+    {
+      "id": "post-cli-1793289643785-approved",
+      "clientId": "cli-1793289643785",
+      "projectId": "proj-barros-1",
+      "title": "Reel Promocional de Destaque",
+      "caption": "Vídeo dinâmico 9:16 com as novidades da marca.",
+      "contentType": "reel",
+      "mediaType": "video",
+      "mediaUrls": [
+        "/api/media/sample_reel.mp4"
+      ],
+      "driveVideoUrl": "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing",
+      "platforms": [
+        "instagram_feed",
+        "reels"
+      ],
+      "status": "approved",
+      "approvedAt": "2026-11-01T14:00:00.000Z",
+      "approvedBy": "Cliente",
+      "scheduledDate": "2026-11-08T15:00",
+      "createdAt": "2026-11-01T12:00:00.000Z",
+      "updatedAt": "2026-11-01T12:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "comments": []
+    },
+    {
+      "id": "post-cli-1793289643785-changes",
+      "clientId": "cli-1793289643785",
+      "projectId": "proj-barros-1",
+      "title": "Carrossel Informativo",
+      "caption": "Ajustar tipografia e legenda conforme alinhamento prévio.",
+      "contentType": "carousel",
+      "mediaType": "carousel",
+      "mediaUrls": [
+        "/api/media/sample_slide1.jpg",
+        "/api/media/sample_slide2.png"
+      ],
+      "platforms": [
+        "instagram_feed"
+      ],
+      "status": "changes_requested",
+      "requestedChangesNote": "Favor atualizar a data do evento no slide 2.",
+      "scheduledDate": "2026-11-10T11:00",
+      "createdAt": "2026-11-01T12:00:00.000Z",
+      "updatedAt": "2026-11-01T12:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "comments": []
+    },
+    {
+      "id": "post-cli-1793289702061-pending",
+      "clientId": "cli-1793289702061",
+      "projectId": "proj-mourao-1",
+      "title": "Publicação Programada Novembro",
+      "caption": "Conteúdo institucional preparado para aprovação rápida do cliente.",
+      "contentType": "static",
+      "mediaType": "image",
+      "mediaUrls": [
+        "/api/media/sample_slide1.jpg"
+      ],
+      "platforms": [
+        "instagram_feed"
+      ],
+      "status": "pending_approval",
+      "scheduledDate": "2026-11-06T10:00",
+      "createdAt": "2026-11-01T12:00:00.000Z",
+      "updatedAt": "2026-11-01T12:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "comments": []
+    },
+    {
+      "id": "post-cli-1793289702061-approved",
+      "clientId": "cli-1793289702061",
+      "projectId": "proj-mourao-1",
+      "title": "Reel Promocional de Destaque",
+      "caption": "Vídeo dinâmico 9:16 com as novidades da marca.",
+      "contentType": "reel",
+      "mediaType": "video",
+      "mediaUrls": [
+        "/api/media/sample_reel.mp4"
+      ],
+      "driveVideoUrl": "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing",
+      "platforms": [
+        "instagram_feed",
+        "reels"
+      ],
+      "status": "approved",
+      "approvedAt": "2026-11-01T14:00:00.000Z",
+      "approvedBy": "Cliente",
+      "scheduledDate": "2026-11-08T15:00",
+      "createdAt": "2026-11-01T12:00:00.000Z",
+      "updatedAt": "2026-11-01T12:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "comments": []
+    },
+    {
+      "id": "post-cli-1793289702061-changes",
+      "clientId": "cli-1793289702061",
+      "projectId": "proj-mourao-1",
+      "title": "Carrossel Informativo",
+      "caption": "Ajustar tipografia e legenda conforme alinhamento prévio.",
+      "contentType": "carousel",
+      "mediaType": "carousel",
+      "mediaUrls": [
+        "/api/media/sample_slide1.jpg",
+        "/api/media/sample_slide2.png"
+      ],
+      "platforms": [
+        "instagram_feed"
+      ],
+      "status": "changes_requested",
+      "requestedChangesNote": "Favor atualizar a data do evento no slide 2.",
+      "scheduledDate": "2026-11-10T11:00",
+      "createdAt": "2026-11-01T12:00:00.000Z",
+      "updatedAt": "2026-11-01T12:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "comments": []
+    },
+    {
+      "id": "post-cli-1793289752289-pending",
+      "clientId": "cli-1793289752289",
+      "projectId": "proj-riviera-1",
+      "title": "Publicação Programada Novembro",
+      "caption": "Conteúdo institucional preparado para aprovação rápida do cliente.",
+      "contentType": "static",
+      "mediaType": "image",
+      "mediaUrls": [
+        "/api/media/sample_slide1.jpg"
+      ],
+      "platforms": [
+        "instagram_feed"
+      ],
+      "status": "pending_approval",
+      "scheduledDate": "2026-11-06T10:00",
+      "createdAt": "2026-11-01T12:00:00.000Z",
+      "updatedAt": "2026-11-01T12:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "comments": []
+    },
+    {
+      "id": "post-cli-1793289752289-approved",
+      "clientId": "cli-1793289752289",
+      "projectId": "proj-riviera-1",
+      "title": "Reel Promocional de Destaque",
+      "caption": "Vídeo dinâmico 9:16 com as novidades da marca.",
+      "contentType": "reel",
+      "mediaType": "video",
+      "mediaUrls": [
+        "/api/media/sample_reel.mp4"
+      ],
+      "driveVideoUrl": "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing",
+      "platforms": [
+        "instagram_feed",
+        "reels"
+      ],
+      "status": "approved",
+      "approvedAt": "2026-11-01T14:00:00.000Z",
+      "approvedBy": "Cliente",
+      "scheduledDate": "2026-11-08T15:00",
+      "createdAt": "2026-11-01T12:00:00.000Z",
+      "updatedAt": "2026-11-01T12:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "comments": []
+    },
+    {
+      "id": "post-cli-1793289752289-changes",
+      "clientId": "cli-1793289752289",
+      "projectId": "proj-riviera-1",
+      "title": "Carrossel Informativo",
+      "caption": "Ajustar tipografia e legenda conforme alinhamento prévio.",
+      "contentType": "carousel",
+      "mediaType": "carousel",
+      "mediaUrls": [
+        "/api/media/sample_slide1.jpg",
+        "/api/media/sample_slide2.png"
+      ],
+      "platforms": [
+        "instagram_feed"
+      ],
+      "status": "changes_requested",
+      "requestedChangesNote": "Favor atualizar a data do evento no slide 2.",
+      "scheduledDate": "2026-11-10T11:00",
+      "createdAt": "2026-11-01T12:00:00.000Z",
+      "updatedAt": "2026-11-01T12:00:00.000Z",
+      "createdByUserId": "user-owner",
+      "createdByUserName": "Paloma Garcia",
+      "comments": []
     }
   ],
   "users": [
@@ -228,7 +501,7 @@
     }
   ],
   "notifications": [],
-  "updatedAt": "2026-11-01T14:55:59.169Z",
+  "updatedAt": "2026-11-01T15:14:55.756Z",
   "auditLogs": [
     {
       "id": "log-1",

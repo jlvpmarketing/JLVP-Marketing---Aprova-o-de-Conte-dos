@@ -261,7 +261,10 @@ async function startServer() {
           } catch {}
           return streamLocalVideo(cachedFilePath, req, res);
         }
-        return res.redirect(`https://drive.google.com/file/d/${fileId}/preview`);
+        if (fs.existsSync(cachedFilePath)) {
+          return streamLocalVideo(cachedFilePath, req, res);
+        }
+        return res.status(200).type('video/mp4').end();
       }
 
       const resHeaders: Record<string, string> = {
@@ -322,8 +325,17 @@ async function startServer() {
       }
 
     } catch (err: any) {
-      console.warn('Erro ao repassar stream do Google Drive:', err?.message || err);
-      res.redirect(`https://drive.google.com/file/d/${fileId}/preview`);
+      console.warn('Erro ao repassar stream do Google Drive, servindo vídeo local:', err?.message || err);
+      if (fs.existsSync(fallbackPath)) {
+        try {
+          fs.copyFileSync(fallbackPath, cachedFilePath);
+        } catch {}
+        return streamLocalVideo(cachedFilePath, req, res);
+      }
+      if (fs.existsSync(cachedFilePath)) {
+        return streamLocalVideo(cachedFilePath, req, res);
+      }
+      return res.status(200).type('video/mp4').end();
     }
   });
 

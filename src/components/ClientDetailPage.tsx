@@ -553,7 +553,7 @@ export const ClientDetailPage: React.FC = () => {
         onClose={() => setDetailPost(null)}
         role="agency"
         onEditPost={p => {
-          setDetailPost(null);
+          setDetailPost(p);
           openEditPostModal(p);
         }}
       />

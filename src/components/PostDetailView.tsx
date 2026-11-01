@@ -44,6 +44,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
   onEditPost,
 }) => {
   const { 
+    posts,
     approvePost, 
     deletePost,
     addComment, 
@@ -54,28 +55,30 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
     addToast 
   } = useApp();
 
-  const { resolvedUrls } = useResolvedMedia(post?.mediaUrls || []);
+  const currentPost = (post && posts.find(p => p.id === post.id)) || post;
+  const { resolvedUrls } = useResolvedMedia(currentPost?.mediaUrls || []);
   const [activeSlide, setActiveSlide] = useState(initialSlide || 0);
   const [newComment, setNewComment] = useState('');
   const [approving, setApproving] = useState(false);
 
   const [playerMode, setPlayerMode] = useState<'native' | 'iframe'>('native');
 
-  if (!post) return null;
+  if (!currentPost) return null;
+  const activePost = currentPost;
 
-  const client = clients.find(c => c.id === post.clientId);
-  const project = projects.find(p => p.id === post.projectId);
-  const contentInfo = getContentTypeInfo(post);
+  const client = clients.find(c => c.id === activePost.clientId);
+  const project = projects.find(p => p.id === activePost.projectId);
+  const contentInfo = getContentTypeInfo(activePost);
 
   // Find effective video url if present anywhere in the post
-  const effectiveDriveUrl = post.driveVideoUrl || 
+  const effectiveDriveUrl = activePost.driveVideoUrl || 
     (resolvedUrls && resolvedUrls.find(u => isDriveVideoUrl(u))) ||
-    (post.mediaUrls && post.mediaUrls.find(u => isDriveVideoUrl(u)));
+    (activePost.mediaUrls && activePost.mediaUrls.find(u => isDriveVideoUrl(u)));
 
-  const isReelOrVideo = contentInfo.type === 'reel' || post.mediaType === 'drive_video' || post.mediaType === 'video' || Boolean(effectiveDriveUrl);
+  const isReelOrVideo = contentInfo.type === 'reel' || activePost.mediaType === 'drive_video' || activePost.mediaType === 'video' || Boolean(effectiveDriveUrl);
 
   // Format scheduled day and hour separately
-  const dateObj = new Date(post.scheduledDate);
+  const dateObj = new Date(activePost.scheduledDate);
   const scheduledDayStr = isNaN(dateObj.getTime())
     ? 'Data não definida'
     : dateObj.toLocaleDateString('pt-BR', {
@@ -182,16 +185,43 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 {isReelOrVideo && (
-                  <button
-                    type="button"
-                    onClick={() => setPlayerMode(m => m === 'native' ? 'iframe' : 'native')}
-                    data-testid="switch-modal-view-mode"
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                    title="Alternar entre player nativo e iframe"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5 text-sky-600" />
-                    <span>{playerMode === 'native' ? 'Modo Iframe' : 'Player Nativo'}</span>
-                  </button>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span data-testid="detail-current-mode" className="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                      Modo: {playerMode === 'native' ? 'Player Nativo' : 'Iframe'}
+                    </span>
+                    <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setPlayerMode('native')}
+                        data-testid="modal-mode-native-btn"
+                        className={`px-2 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                          playerMode === 'native' ? 'bg-slate-900 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Player Nativo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPlayerMode('iframe')}
+                        data-testid="modal-mode-iframe-btn"
+                        className={`px-2 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                          playerMode === 'iframe' ? 'bg-slate-900 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Modo Iframe
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPlayerMode(m => m === 'native' ? 'iframe' : 'native')}
+                      data-testid="switch-modal-view-mode"
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                      title="Alternar entre player nativo e iframe"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-sky-600" />
+                      <span>{playerMode === 'native' ? 'Alternar para Modo Iframe' : 'Alternar para Player Nativo'}</span>
+                    </button>
+                  </div>
                 )}
                 <span className="text-xs text-slate-400">
                   {contentInfo.type === 'reel' ? 'Reel / Vídeo' : post.mediaType === 'carousel' ? 'Carrossel' : 'Arte'}
@@ -473,9 +503,9 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                   {onEditPost && (
                     <button
                       type="button"
+                      data-testid="edit-post-btn"
                       onClick={() => {
-                        onClose();
-                        onEditPost(post);
+                        onEditPost(activePost);
                       }}
                       className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer"
                     >
