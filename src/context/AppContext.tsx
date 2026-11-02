@@ -148,6 +148,43 @@ const STORAGE_KEYS = {
   MONTH_FILTER: 'aprovaflow_month_filter_v1',
 };
 
+const DELETED_POST_IDS_KEY = 'aprovaflow_deleted_posts_v1';
+const DELETED_PROJECT_IDS_KEY = 'aprovaflow_deleted_projects_v1';
+
+export const getDeletedPostIds = (): Set<string> => {
+  try {
+    const saved = localStorage.getItem(DELETED_POST_IDS_KEY);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+export const addDeletedPostId = (id: string) => {
+  try {
+    const set = getDeletedPostIds();
+    set.add(id);
+    localStorage.setItem(DELETED_POST_IDS_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+};
+
+export const getDeletedProjectIds = (): Set<string> => {
+  try {
+    const saved = localStorage.getItem(DELETED_PROJECT_IDS_KEY);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+export const addDeletedProjectId = (id: string) => {
+  try {
+    const set = getDeletedProjectIds();
+    set.add(id);
+    localStorage.setItem(DELETED_PROJECT_IDS_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+};
+
 const SESSION_ACTIVE_KEY = 'aprovaflow_session_active_v1';
 const SESSION_DATE_KEY = 'aprovaflow_session_date_v1';
 
@@ -417,10 +454,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const srvPosts = await serverSync.fetchPosts();
         if (srvPosts && srvPosts.length > 0) {
-          const clean = srvPosts.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
+          const deletedPosts = getDeletedPostIds();
+          const deletedProjects = getDeletedProjectIds();
+          const clean = srvPosts.filter(p => 
+            !deletedPosts.has(p.id) && 
+            !deletedProjects.has(p.projectId) && 
+            !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id)
+          );
+
           setPosts(prev => {
             const localMap = new Map(prev.map(p => [p.id, p]));
+            const cleanMap = new Map(clean.map(p => [p.id, p]));
             let changed = false;
+
+            // Remove any locally deleted posts
+            const validPrev = prev.filter(p => !deletedPosts.has(p.id) && !deletedProjects.has(p.projectId));
+            if (validPrev.length !== prev.length) changed = true;
 
             const updatedList = clean.map(srvPost => {
               const loc = localMap.get(srvPost.id);
@@ -438,22 +487,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 changed = true;
                 return srvPost;
               }
-              // If local has more media, push to server
-              if (locMedia > srvMedia) {
+              // If local has more media and is newer, push to server
+              if (locMedia > srvMedia && locTime > srvTime) {
                 serverSync.savePost(loc);
               }
               return loc;
             });
 
-            const pending = prev.filter(p => !clean.some(sp => sp.id === p.id));
-            if (pending.length > 0) {
-              pending.forEach(p => serverSync.savePost(p));
-            }
+            // Keep any local posts that were not yet fetched from server (but NOT deleted ones!)
+            const localOnly = validPrev.filter(p => !cleanMap.has(p.id));
 
-            if (!changed && updatedList.length === prev.length) {
+            if (!changed && updatedList.length + localOnly.length === prev.length) {
               return prev;
             }
-            return [...updatedList, ...pending];
+            return [...updatedList, ...localOnly];
           });
         }
       } catch {}
@@ -480,21 +527,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     const unsubProjects = firestoreSync.subscribeToProjects((remoteProjects) => {
-      if (remoteProjects && remoteProjects.length > 0) {
-        setProjects(prev => {
-          const remoteMap = new Map(remoteProjects.map(p => [p.id, p]));
-          const missing = prev.filter(p => !remoteMap.has(p.id));
-          return [...remoteProjects, ...missing];
-        });
+      if (remoteProjects) {
+        const deletedProjects = getDeletedProjectIds();
+        const cleanProjects = remoteProjects.filter(p => !deletedProjects.has(p.id));
+        setProjects(cleanProjects);
       }
     });
 
     const unsubPosts = firestoreSync.subscribeToPosts((remotePosts) => {
       if (remotePosts) {
-        const cleanRemote = remotePosts.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
+        const deletedPosts = getDeletedPostIds();
+        const deletedProjects = getDeletedProjectIds();
+        const cleanRemote = remotePosts.filter(p => 
+          !deletedPosts.has(p.id) && 
+          !deletedProjects.has(p.projectId) && 
+          !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id)
+        );
+
         setPosts(prev => {
           const localMap = new Map(prev.map(p => [p.id, p]));
           const remoteMap = new Map(cleanRemote.map(p => [p.id, p]));
+          const validPrev = prev.filter(p => !deletedPosts.has(p.id) && !deletedProjects.has(p.projectId));
 
           // 1. Process all remote posts, but preserve local posts that were recently updated or have more media
           const mergedRemote = cleanRemote.map(remotePost => {
@@ -507,7 +560,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const localMediaCount = localPost.mediaUrls?.length || 0;
             const remoteMediaCount = remotePost.mediaUrls?.length || 0;
 
-            // If the local post has more media (e.g. user added videos to carousel) or has a more recent edit, keep local!
             if (localMediaCount > remoteMediaCount || localTime > remoteTime) {
               return localPost;
             }
@@ -515,22 +567,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return remotePost;
           });
 
-          // 2. Preserve any local posts that do not exist yet in remote and sync them to Firestore
-          const pendingSync = prev.filter(p => {
-            if (remoteMap.has(p.id)) return false;
-            if (['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id)) return false;
-            return true;
-          });
+          // 2. Preserve valid local-only posts
+          const localOnly = validPrev.filter(p => 
+            !remoteMap.has(p.id) && 
+            !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id)
+          );
 
-          // Sync pending posts to Firestore so clients receive them immediately
-          if (pendingSync.length > 0) {
-            pendingSync.forEach(p => {
-              firestoreSync.savePost(p).catch(() => {});
-              serverSync.savePost(p).catch(() => {});
-            });
-          }
-
-          return [...mergedRemote, ...pendingSync];
+          return [...mergedRemote, ...localOnly];
         });
       }
     });
@@ -1038,19 +1081,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const postsToDelete = posts.filter(p => p.projectId === id);
     const postIdsToDelete = new Set(postsToDelete.map(p => p.id));
 
-    firestoreSync.deleteProject(id);
-    postsToDelete.forEach(p => firestoreSync.deletePost(p.id));
+    // Register project and its posts in tombstones
+    addDeletedProjectId(id);
+    postIdsToDelete.forEach(postId => addDeletedPostId(postId));
 
-    const notifsToDelete = notifications.filter(n => n.postId && postIdsToDelete.has(n.postId));
+    // Delete project on server (server will also cascade delete posts)
+    serverSync.deleteProject(id);
+
+    // Delete from Firestore
+    firestoreSync.deleteProject(id);
+    postsToDelete.forEach(p => {
+      serverSync.deletePost(p.id);
+      firestoreSync.deletePost(p.id).catch(() => {});
+    });
+
+    const notifsToDelete = notifications.filter(n => (n.projectId && n.projectId === id) || (n.postId && postIdsToDelete.has(n.postId)));
     notifsToDelete.forEach(n => firestoreSync.deleteNotification(n.id));
-    setNotifications(prev => prev.filter(n => !n.postId || !postIdsToDelete.has(n.postId)));
+    setNotifications(prev => prev.filter(n => n.projectId !== id && (!n.postId || !postIdsToDelete.has(n.postId))));
 
     setProjects(prev => prev.filter(p => p.id !== id));
-    setPosts(prev => prev.filter(p => p.projectId !== id));
+    setPosts(prev => prev.filter(p => p.projectId !== id && !postIdsToDelete.has(p.id)));
     if (selectedProjectId === id) {
       setSelectedProjectId(null);
     }
-    addToast('info', 'Pasta Removida', `A pasta "${proj?.name || ''}" e suas demandas foram excluídas.`);
+    addAuditLog('project_deleted', `Removeu o projeto "${proj?.name || id}" e todas as suas ${postsToDelete.length} publicações.`, id, proj?.name);
+    addToast('info', 'Pasta Removida', `A pasta "${proj?.name || ''}" e todos os seus ${postsToDelete.length} posts foram excluídos.`);
   };
 
   const addSupportDocToProject = (projectId: string, doc: Omit<SupportDocument, 'id' | 'uploadDate'>) => {
@@ -1164,6 +1219,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const deletePost = (id: string) => {
     const post = posts.find(p => p.id === id);
+    addDeletedPostId(id);
     setPosts(prev => prev.filter(p => p.id !== id));
     serverSync.deletePost(id);
     firestoreSync.deletePost(id).catch(() => {});

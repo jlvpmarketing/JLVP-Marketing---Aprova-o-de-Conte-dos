@@ -39,6 +39,7 @@ export interface AuditLogItem {
     | 'client_deleted'
     | 'project_created'
     | 'project_edited'
+    | 'project_deleted'
     | 'user_created'
     | 'user_edited'
     | 'user_deleted'

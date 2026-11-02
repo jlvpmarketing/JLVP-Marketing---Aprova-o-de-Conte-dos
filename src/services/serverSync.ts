@@ -114,6 +114,21 @@ export const serverSync = {
   },
 
   /**
+   * Delete project from the server (cascades linked posts)
+   */
+  async deleteProject(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+      return res.ok;
+    } catch (err) {
+      console.warn('Erro ao excluir projeto no servidor:', err);
+      return false;
+    }
+  },
+
+  /**
    * Save client to server
    */
   async saveClient(client: Client): Promise<boolean> {

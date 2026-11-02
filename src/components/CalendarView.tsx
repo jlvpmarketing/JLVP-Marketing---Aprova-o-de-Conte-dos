@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { PostContent } from '../types';
+import { useApp } from '../context/AppContext';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -9,7 +10,8 @@ import {
   Clock, 
   Video, 
   Layers, 
-  Image as ImageIcon 
+  Image as ImageIcon,
+  Folder
 } from 'lucide-react';
 import { getContentTypeInfo } from '../utils/contentTypeHelper';
 
@@ -19,6 +21,9 @@ interface CalendarViewProps {
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost }) => {
+  const { projects } = useApp();
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>('all');
+
   const [currentDate, setCurrentDate] = useState(() => {
     if (posts && posts.length > 0) {
       const valid = posts.filter(p => p.scheduledDate && !isNaN(new Date(p.scheduledDate).getTime()));
@@ -33,6 +38,24 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
   });
 
   const [filterStatus, setFilterStatus] = useState<string>('all');
+
+  // Available projects for the filter dropdown
+  const availableProjects = useMemo(() => {
+    const list: { id: string; name: string }[] = [];
+    const seen = new Set<string>();
+    (projects || []).forEach(proj => {
+      seen.add(proj.id);
+      list.push({ id: proj.id, name: proj.name });
+    });
+    // Include any project IDs from posts that might not be in projects list
+    posts.forEach(p => {
+      if (p.projectId && !seen.has(p.projectId)) {
+        seen.add(p.projectId);
+        list.push({ id: p.projectId, name: 'Projeto' });
+      }
+    });
+    return list;
+  }, [projects, posts]);
 
   React.useEffect(() => {
     if (posts && posts.length > 0) {
@@ -102,6 +125,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
   };
 
   const filteredPosts = posts.filter(p => {
+    if (selectedProjectFilter !== 'all' && p.projectId !== selectedProjectFilter) return false;
     if (filterStatus === 'all') return true;
     return p.status === filterStatus;
   });
@@ -155,36 +179,34 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
               {monthNames[month]} <span className="font-mono text-slate-500">{year}</span>
             </h2>
             <p className="text-xs text-slate-500">
-              Grade de agendamento mensal de publicações ({filteredPosts.length} posts carregados)
+              Grade de agendamento mensal de publicações ({filteredPosts.length} posts exibidos)
             </p>
           </div>
         </div>
 
         {/* Controls and filters */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Quick month pills if posts exist in other months */}
-          {monthsWithPosts.length > 0 && (
-            <div className="hidden md:flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 p-1 rounded-lg">
-              <span className="text-slate-400 px-1 text-[10px]">Meses:</span>
-              {monthsWithPosts.map(m => {
-                const [y, mNum] = m.split('-').map(Number);
-                const isSelected = y === year && mNum - 1 === month;
+          {/* Project filter dropdown selector (replaces quick month pills) */}
+          <div className="flex items-center gap-1.5 bg-white border border-slate-300 px-3 py-1.5 rounded-xl shadow-2xs">
+            <Folder className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <label htmlFor="calendar-project-select" className="text-xs font-semibold text-slate-600 shrink-0">Projeto:</label>
+            <select
+              id="calendar-project-select"
+              value={selectedProjectFilter}
+              onChange={e => setSelectedProjectFilter(e.target.value)}
+              className="text-xs font-bold text-slate-800 bg-transparent border-0 focus:outline-none cursor-pointer pr-1"
+            >
+              <option value="all">Todos os Projetos ({posts.length})</option>
+              {availableProjects.map(proj => {
+                const count = posts.filter(p => p.projectId === proj.id).length;
                 return (
-                  <button
-                    key={m}
-                    onClick={() => handleJumpToMonth(m)}
-                    className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-slate-900 text-white font-bold shadow-2xs'
-                        : 'hover:bg-slate-200 text-slate-700'
-                    }`}
-                  >
-                    {monthNames[mNum - 1].slice(0, 3)}/{String(y).slice(2)}
-                  </button>
+                  <option key={proj.id} value={proj.id}>
+                    {proj.name} ({count})
+                  </option>
                 );
               })}
-            </div>
-          )}
+            </select>
+          </div>
 
           {/* Status filter tabs */}
           <div className="flex items-center gap-1 p-1 bg-slate-200/60 rounded-lg text-xs font-medium text-slate-600">
@@ -281,7 +303,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
               </div>
 
               {/* Day Posts List */}
-              <div className="flex-1 space-y-1 overflow-y-auto max-h-[85px]">
+              <div className="flex-1 space-y-1.5 overflow-y-auto max-h-[140px] pr-0.5">
                 {cellPosts.map(post => {
                   let badgeBg = 'bg-brand-light border-brand-light text-brand-dark';
                   let StatusIcon = Clock;
@@ -296,23 +318,38 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
 
                   const timeStr = post.scheduledDate ? post.scheduledDate.slice(11, 16) : '';
                   const typeInfo = getContentTypeInfo(post);
+                  const projectName = projects.find(pr => pr.id === post.projectId)?.name || 'Projeto';
 
                   return (
                     <button
                       key={post.id}
                       onClick={() => onSelectPost(post)}
-                      className={`w-full text-left p-1.5 rounded-lg border text-[11px] leading-tight transition-all hover:scale-[1.02] shadow-2xs ${badgeBg}`}
-                      title={post.title}
+                      className={`w-full text-left p-2 rounded-xl border text-[11px] leading-tight transition-all hover:scale-[1.01] shadow-2xs flex flex-col gap-1 cursor-pointer ${badgeBg}`}
+                      title={`${projectName} • ${post.title}`}
                     >
-                      <div className="flex items-center gap-1 font-semibold truncate">
+                      {/* Propriedade 1: Nome do Projeto */}
+                      <div className="text-[10px] font-bold text-slate-600 truncate flex items-center gap-1">
+                        <Folder className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{projectName}</span>
+                      </div>
+
+                      {/* Propriedade 2: Nome da Publicação */}
+                      <div className="text-[11px] font-bold text-slate-900 truncate flex items-center gap-1">
                         <StatusIcon className="w-3 h-3 shrink-0" />
                         <span className="truncate">{post.title}</span>
                       </div>
-                      <div className="flex items-center justify-between text-[10px] opacity-75 font-mono mt-0.5">
+
+                      {/* Propriedade 3: Horário */}
+                      <div className="text-[10px] font-mono text-slate-600 flex items-center gap-1">
+                        <Clock className="w-2.5 h-2.5 shrink-0 opacity-70" />
                         <span>{timeStr || '10:00'}</span>
+                      </div>
+
+                      {/* Propriedade 4: Tipo */}
+                      <div className="pt-0.5">
                         <span
                           data-testid={`post-type-label-${post.id}`}
-                          className="uppercase text-[9px] font-bold tracking-wider px-1 py-0.2 rounded bg-black/10 text-slate-800"
+                          className="uppercase text-[9px] font-extrabold tracking-wider px-1.5 py-0.5 rounded bg-black/10 text-slate-800 inline-block"
                         >
                           {typeInfo.label}
                         </span>

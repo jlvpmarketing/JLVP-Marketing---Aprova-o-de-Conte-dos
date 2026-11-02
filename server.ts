@@ -89,8 +89,33 @@ async function startServer() {
     const { id } = req.params;
     const db = readDatabase();
     db.posts = (db.posts || []).filter((p: any) => p.id !== id);
+    db.notifications = (db.notifications || []).filter((n: any) => n.postId !== id);
     writeDatabase(db);
+    console.log(`🗑️ Post ${id} excluído permanentemente do servidor`);
     res.json({ success: true });
+  });
+
+  // Delete Project with Cascade Delete of all linked Posts
+  app.delete('/api/projects/:id', (req, res) => {
+    const { id } = req.params;
+    const db = readDatabase();
+    const projectToDelete = (db.projects || []).find((p: any) => p.id === id);
+    db.projects = (db.projects || []).filter((p: any) => p.id !== id);
+    
+    // Find and delete all posts belonging to this project
+    const deletedPostIds = new Set(
+      (db.posts || []).filter((p: any) => p.projectId === id).map((p: any) => p.id)
+    );
+    db.posts = (db.posts || []).filter((p: any) => p.projectId !== id);
+
+    // Clean notifications
+    db.notifications = (db.notifications || []).filter((n: any) => 
+      n.projectId !== id && (!n.postId || !deletedPostIds.has(n.postId))
+    );
+
+    writeDatabase(db);
+    console.log(`🗑️ Projeto "${projectToDelete?.name || id}" excluído com ${deletedPostIds.size} posts vinculados.`);
+    res.json({ success: true, deletedPostsCount: deletedPostIds.size });
   });
 
   // Media Upload (saves base64 video/image to disk and returns direct streaming URL)

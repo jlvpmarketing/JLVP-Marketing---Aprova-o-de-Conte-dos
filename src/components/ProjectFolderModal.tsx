@@ -157,30 +157,6 @@ export const ProjectFolderModal: React.FC<ProjectFolderModalProps> = ({ isOpen, 
             />
           </div>
 
-          {/* Status */}
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1.5">
-              Status da Pasta
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { id: 'active', label: 'Em Produção', color: 'border-blue-300 bg-blue-50/50 text-blue-800' },
-                { id: 'review', label: 'Em Aprovação', color: 'border-amber-300 bg-amber-50/50 text-amber-800' },
-                { id: 'completed', label: 'Finalizado', color: 'border-emerald-300 bg-emerald-50/50 text-emerald-800' },
-              ].map(st => (
-                <button
-                  key={st.id}
-                  type="button"
-                  onClick={() => setStatus(st.id as 'active' | 'review' | 'completed')}
-                  className={`py-2 px-3 text-xs font-medium rounded-lg border text-center transition-all ${
-                    status === st.id ? `${st.color} ring-1 ring-offset-1 ring-slate-900 font-semibold` : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {st.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* Link Único do Projeto para o Cliente */}
           {projectToEdit && (

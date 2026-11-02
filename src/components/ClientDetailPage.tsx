@@ -66,23 +66,13 @@ export const ClientDetailPage: React.FC = () => {
   const clientProjects = projects.filter(p => p.clientId === client?.id);
 
   // Active project folder or all client posts
-  const isViewingAll = selectedProjectId === 'all' || !selectedProjectId;
+  const isViewingAll = selectedProjectId === 'all' || (!selectedProjectId && clientProjects.length === 0);
   const activeProject = isViewingAll ? null : (clientProjects.find(p => p.id === selectedProjectId) || clientProjects[0]);
 
   const clientPosts = posts.filter(p => {
     if (p.clientId !== client?.id) return false;
-    if (isViewingAll) return true;
-    if (activeProject) {
-      // Matches active project
-      if (p.projectId === activeProject.id) return true;
-      // If the client only has 1 project folder, show all posts of this client so none are lost
-      if (clientProjects.length <= 1) return true;
-      // If the post has an orphaned projectId that doesn't match any existing project of this client, keep it visible
-      const matchesAnyClientProject = clientProjects.some(cp => cp.id === p.projectId);
-      if (!matchesAnyClientProject) return true;
-      return false;
-    }
-    return true;
+    if (isViewingAll || !activeProject) return true;
+    return p.projectId === activeProject.id;
   });
 
   // Kanban status groups (without month filter as requested)

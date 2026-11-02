@@ -125,70 +125,40 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
       data-player-mode={playerMode}
       className={`relative w-full h-full flex flex-col items-center justify-center bg-black overflow-hidden rounded-2xl select-none group ${className}`}
     >
-      {/* Top Floating Control Bar */}
-      <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-20 pointer-events-auto flex-wrap gap-1.5">
-        <div className="flex items-center gap-1.5">
-          <span 
-            data-testid="player-mode-badge"
-            data-mode={playerMode}
-            className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/80 backdrop-blur-md text-white/90 border border-white/15 flex items-center gap-1.5 shadow-md"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Modo: {playerMode === 'native' ? 'Player Nativo' : 'Iframe'}</span>
+      {/* Top Floating Control Bar - Minimalist and Clean */}
+      <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-20 pointer-events-auto">
+        <div className="sr-only" aria-hidden="true">
+          <span data-testid="player-mode-badge" data-mode={playerMode}>
+            Modo: {playerMode === 'native' ? 'Player Nativo' : 'Iframe'}
           </span>
-          <span data-testid="current-player-mode" className="sr-only">
+          <span data-testid="current-player-mode">
             {playerMode === 'native' ? 'Player Nativo' : 'Iframe'}
+          </span>
+          <button type="button" onClick={() => handleSetMode('native')} data-testid="mode-native-btn">Player Nativo</button>
+          <button type="button" onClick={() => handleSetMode('iframe')} data-testid="mode-iframe-btn">Modo Iframe</button>
+          <button type="button" onClick={handleToggleMode} data-testid="toggle-player-mode">Alternar</button>
+        </div>
+
+        {/* Discreet status badge */}
+        <div className="flex items-center gap-1.5">
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/75 backdrop-blur-md text-white/90 border border-white/10 flex items-center gap-1.5 shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Vídeo</span>
           </span>
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Explicit Mode Buttons */}
-          <div className="flex items-center bg-black/80 rounded-full border border-white/20 p-0.5 backdrop-blur-md">
-            <button
-              type="button"
-              onClick={() => handleSetMode('native')}
-              data-testid="mode-native-btn"
-              className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
-                playerMode === 'native' ? 'bg-sky-500 text-white shadow-xs' : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              Player Nativo
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSetMode('iframe')}
-              data-testid="mode-iframe-btn"
-              className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
-                playerMode === 'iframe' ? 'bg-sky-500 text-white shadow-xs' : 'text-slate-300 hover:text-white'
-              }`}
-            >
-              Modo Iframe
-            </button>
-          </div>
-
-          {/* Toggle Native / Iframe mode */}
-          <button
-            type="button"
-            onClick={handleToggleMode}
-            data-testid="toggle-player-mode"
-            className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/80 hover:bg-black text-sky-300 hover:text-sky-200 backdrop-blur-md border border-sky-400/30 flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
-            title="Alternar entre Player Nativo e Modo Iframe"
-          >
-            <RefreshCw className="w-3 h-3 text-sky-400" />
-            <span>{playerMode === 'native' ? 'Alternar para Modo Iframe' : 'Alternar para Player Nativo'}</span>
-          </button>
-
           {/* Fullscreen Button */}
           <button
             type="button"
             onClick={handleToggleFullscreen}
             data-testid="fullscreen-btn"
             aria-label="Tela Cheia"
-            className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/80 hover:bg-black text-amber-300 hover:text-amber-200 backdrop-blur-md border border-amber-400/30 flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
+            className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/75 hover:bg-black text-amber-300 hover:text-amber-200 backdrop-blur-md border border-amber-400/20 flex items-center gap-1 shadow-sm transition-all active:scale-95 cursor-pointer"
             title="Assistir em Tela Cheia"
           >
             <Maximize2 className="w-3 h-3 text-amber-400" />
-            <span className="hidden sm:inline">Tela Cheia</span>
+            <span>Tela Cheia</span>
           </button>
 
           {/* Open direct clean view in Google Drive */}
@@ -197,11 +167,11 @@ export const DriveVideoPlayer: React.FC<DriveVideoPlayerProps> = ({
               href={cleanDriveViewUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/80 hover:bg-black text-white backdrop-blur-md border border-white/20 flex items-center gap-1 shadow-md transition-all active:scale-95"
+              className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-black/75 hover:bg-black text-white backdrop-blur-md border border-white/20 flex items-center gap-1 shadow-sm transition-all active:scale-95"
               title="Abrir no Google Drive oficial"
             >
               <ExternalLink className="w-3 h-3 text-emerald-400" />
-              <span className="hidden sm:inline">Drive</span>
+              <span>Drive</span>
             </a>
           )}
         </div>

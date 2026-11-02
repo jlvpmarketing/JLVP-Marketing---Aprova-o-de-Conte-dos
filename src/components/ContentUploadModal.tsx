@@ -647,29 +647,30 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
             )}
 
             {/* Media Upload with Drag and Drop Reordering */}
-            {(contentType === 'static' || contentType === 'carousel' || contentType === 'story') && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    {contentType === 'carousel' 
-                      ? 'Mídias do Carrossel (Imagens ou Vídeos - Arraste para reordenar)' 
-                      : contentType === 'story'
-                      ? 'Mídias do Story (Uma ou mais fotos/vídeos)'
-                      : 'Arquivo de Mídia (Foto ou Vídeo)'}
-                  </label>
-                  <span className="text-[11px] text-slate-400">
-                    {mediaUrls.length} {mediaUrls.length === 1 ? 'item' : 'itens'}
-                  </span>
-                </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  {contentType === 'carousel' 
+                    ? 'Mídias do Carrossel (Imagens e/ou Vídeos - Arraste para reordenar)' 
+                    : contentType === 'story'
+                    ? 'Mídias do Story (Múltiplos vídeos e/ou imagens)'
+                    : contentType === 'reel'
+                    ? 'Arquivo de Vídeo do Reel (ou use o link do Google Drive acima)'
+                    : 'Arquivo de Mídia (Imagem ou Vídeo)'}
+                </label>
+                <span className="text-[11px] text-slate-400">
+                  {mediaUrls.length} {mediaUrls.length === 1 ? 'item' : 'itens'}
+                </span>
+              </div>
 
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleMediaUpload}
-                  accept="image/*,video/*"
-                  multiple={contentType === 'carousel' || contentType === 'story'}
-                  className="hidden"
-                />
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleMediaUpload}
+                accept="image/*,video/*"
+                multiple={contentType === 'carousel' || contentType === 'story'}
+                className="hidden"
+              />
 
                 <div className="flex flex-wrap gap-2.5 items-center">
                   <button
@@ -849,7 +850,6 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                   </p>
                 )}
               </div>
-            )}
 
             {/* Scheduled Date & Time */}
             <div>

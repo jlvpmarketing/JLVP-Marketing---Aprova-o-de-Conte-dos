@@ -90,8 +90,8 @@ export const ClientPortalView: React.FC = () => {
     fetchDirectServerData();
   }, [matchedProject, matchedClient, effectiveProjectKey]);
 
-  const currentProject = matchedProject || serverData?.project || null;
-  const client = matchedClient || serverData?.client || null;
+  const currentProject = matchedProject || serverData?.project || (projects.length > 0 ? projects[0] : null);
+  const client = matchedClient || serverData?.client || (currentProject ? clients.find(c => c.id === currentProject.clientId) : null) || (clients.length > 0 ? clients[0] : null);
   const clientProjects = client ? projects.filter(p => p.clientId === client.id) : [];
 
   // Loading timeout threshold: after 3.5s offers instant reconnect

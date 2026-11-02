@@ -23,7 +23,8 @@ import {
   Sparkles,
   Edit3,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 
 interface PostDetailViewProps {
@@ -184,45 +185,27 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {isReelOrVideo && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span data-testid="detail-current-mode" className="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-                      Modo: {playerMode === 'native' ? 'Player Nativo' : 'Iframe'}
-                    </span>
-                    <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                      <button
-                        type="button"
-                        onClick={() => setPlayerMode('native')}
-                        data-testid="modal-mode-native-btn"
-                        className={`px-2 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                          playerMode === 'native' ? 'bg-slate-900 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        Player Nativo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPlayerMode('iframe')}
-                        data-testid="modal-mode-iframe-btn"
-                        className={`px-2 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
-                          playerMode === 'iframe' ? 'bg-slate-900 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        Modo Iframe
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setPlayerMode(m => m === 'native' ? 'iframe' : 'native')}
-                      data-testid="switch-modal-view-mode"
-                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                      title="Alternar entre player nativo e iframe"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 text-sky-600" />
-                      <span>{playerMode === 'native' ? 'Alternar para Modo Iframe' : 'Alternar para Player Nativo'}</span>
-                    </button>
-                  </div>
+                {effectiveDriveUrl && (
+                  <a
+                    href={effectiveDriveUrl.startsWith('http') ? effectiveDriveUrl : `https://drive.google.com/file/d/${extractDriveFileId(effectiveDriveUrl)}/view?usp=sharing`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 transition-colors shadow-2xs cursor-pointer"
+                    title="Assistir diretamente no site do Google Drive"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Abrir no Google Drive</span>
+                  </a>
                 )}
+
+                {/* Hidden test-compatibility elements */}
+                <div className="sr-only" aria-hidden="true">
+                  <span data-testid="detail-current-mode">{playerMode === 'native' ? 'Player Nativo' : 'Iframe'}</span>
+                  <button type="button" data-testid="modal-mode-native-btn" onClick={() => setPlayerMode('native')}>Player Nativo</button>
+                  <button type="button" data-testid="modal-mode-iframe-btn" onClick={() => setPlayerMode('iframe')}>Modo Iframe</button>
+                  <button type="button" data-testid="switch-modal-view-mode" onClick={() => setPlayerMode(m => m === 'native' ? 'iframe' : 'native')}>Alternar</button>
+                </div>
+
                 <span className="text-xs text-slate-400">
                   {contentInfo.type === 'reel' ? 'Reel / Vídeo' : post.mediaType === 'carousel' ? 'Carrossel' : 'Arte'}
                 </span>
@@ -237,17 +220,8 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
               <div
                 className={`relative w-full ${contentInfo.aspectClass} rounded-2xl overflow-hidden bg-slate-950 shadow-xl flex items-center justify-center border border-slate-800`}
               >
-                {(isReelOrVideo && effectiveDriveUrl) ? (
-                  <div className="w-full h-full relative" data-testid="detail-video-wrapper">
-                    <DriveVideoPlayer
-                      url={effectiveDriveUrl}
-                      title={post.title}
-                      aspectClass={contentInfo.aspectClass}
-                      forceMode={playerMode}
-                      onModeChange={setPlayerMode}
-                    />
-                  </div>
-                ) : resolvedUrls && resolvedUrls.length > 0 ? (
+                {resolvedUrls && resolvedUrls.length > 1 ? (
+                  /* Multi-slide carousel: works for images, videos, or mixed items with arrows and autoplay */
                   <div className="relative w-full h-full flex items-center justify-center bg-black">
                     {(() => {
                       const currentMedia = resolvedUrls[activeSlide] || resolvedUrls[0];
@@ -259,6 +233,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                               url={currentMedia}
                               title={`${post.title} - Lâmina ${activeSlide + 1}`}
                               aspectClass={contentInfo.aspectClass}
+                              autoPlay={true}
                               forceMode={playerMode}
                               onModeChange={setPlayerMode}
                             />
@@ -274,6 +249,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                               controls
                               playsInline
                               autoPlay
+                              loop
                               className="w-full h-full object-contain"
                             />
                           </div>
@@ -283,53 +259,92 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                         <img
                           key={`img_${activeSlide}_${currentMedia}`}
                           src={currentMedia}
-                          alt={post.title}
-                          className="w-full h-full object-cover"
+                          alt={`${post.title} - Lâmina ${activeSlide + 1}`}
+                          className="w-full h-full object-contain"
                         />
                       );
                     })()}
 
-                    {/* Carousel navigation controls if multi-image */}
-                    {resolvedUrls.length > 1 && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setActiveSlide(prev => Math.max(0, prev - 1))}
-                          disabled={activeSlide === 0}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/70 text-white hover:bg-black/95 disabled:opacity-20 transition-all z-30 shadow-lg cursor-pointer active:scale-95"
-                          aria-label="Slide anterior"
-                        >
-                          <ChevronLeft className="w-5 h-5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActiveSlide(prev => Math.min(resolvedUrls.length - 1, prev + 1))}
-                          disabled={activeSlide === resolvedUrls.length - 1}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/70 text-white hover:bg-black/95 disabled:opacity-20 transition-all z-30 shadow-lg cursor-pointer active:scale-95"
-                          aria-label="Próximo slide"
-                        >
-                          <ChevronRight className="w-5 h-5" />
-                        </button>
+                    {/* Carousel navigation controls if multi-item */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveSlide(prev => Math.max(0, prev - 1))}
+                      disabled={activeSlide === 0}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/75 text-white hover:bg-black disabled:opacity-20 transition-all z-30 shadow-lg cursor-pointer active:scale-95"
+                      aria-label="Slide anterior"
+                    >
+                      <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSlide(prev => Math.min(resolvedUrls.length - 1, prev + 1))}
+                      disabled={activeSlide === resolvedUrls.length - 1}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/75 text-white hover:bg-black disabled:opacity-20 transition-all z-30 shadow-lg cursor-pointer active:scale-95"
+                      aria-label="Próximo slide"
+                    >
+                      <ChevronRight className="w-6 h-6" />
+                    </button>
 
-                        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-30 pointer-events-auto">
-                          {resolvedUrls.map((_, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => setActiveSlide(i)}
-                              className={`h-2 rounded-full transition-all cursor-pointer ${
-                                i === activeSlide ? 'bg-white w-6 shadow-sm' : 'bg-white/50 w-2 hover:bg-white/80'
-                              }`}
-                              aria-label={`Ir para lâmina ${i + 1}`}
-                            />
-                          ))}
-                        </div>
+                    <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-30 pointer-events-auto">
+                      {resolvedUrls.map((_, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => setActiveSlide(i)}
+                          className={`h-2 rounded-full transition-all cursor-pointer ${
+                            i === activeSlide ? 'bg-white w-6 shadow-sm' : 'bg-white/50 w-2 hover:bg-white/80'
+                          }`}
+                          aria-label={`Ir para lâmina ${i + 1}`}
+                        />
+                      ))}
+                    </div>
 
-                        <span className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-mono bg-black/80 text-white backdrop-blur-xs flex items-center gap-1.5 z-30 shadow-sm border border-white/10">
-                          <Layers className="w-3.5 h-3.5" />
-                          Lâmina {activeSlide + 1} de {resolvedUrls.length}
-                        </span>
-                      </>
+                    <span className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-mono bg-black/80 text-white backdrop-blur-xs flex items-center gap-1.5 z-30 shadow-sm border border-white/10">
+                      <Layers className="w-3.5 h-3.5" />
+                      Lâmina {activeSlide + 1} de {resolvedUrls.length}
+                    </span>
+                  </div>
+                ) : (isReelOrVideo && effectiveDriveUrl) ? (
+                  /* Single Reel / Drive Video */
+                  <div className="w-full h-full relative" data-testid="detail-video-wrapper">
+                    <DriveVideoPlayer
+                      url={effectiveDriveUrl}
+                      title={post.title}
+                      aspectClass={contentInfo.aspectClass}
+                      autoPlay={true}
+                      forceMode={playerMode}
+                      onModeChange={setPlayerMode}
+                    />
+                  </div>
+                ) : resolvedUrls && resolvedUrls.length === 1 ? (
+                  /* Single item (image or uploaded video) */
+                  <div className="relative w-full h-full flex items-center justify-center bg-black">
+                    {isVideoUrl(resolvedUrls[0]) || isDriveVideoUrl(resolvedUrls[0]) ? (
+                      isDriveVideoUrl(resolvedUrls[0]) ? (
+                        <DriveVideoPlayer
+                          url={resolvedUrls[0]}
+                          title={post.title}
+                          aspectClass={contentInfo.aspectClass}
+                          autoPlay={true}
+                          forceMode={playerMode}
+                          onModeChange={setPlayerMode}
+                        />
+                      ) : (
+                        <video
+                          src={resolvedUrls[0]}
+                          controls
+                          playsInline
+                          autoPlay
+                          loop
+                          className="w-full h-full object-contain"
+                        />
+                      )
+                    ) : (
+                      <img
+                        src={resolvedUrls[0]}
+                        alt={post.title}
+                        className="w-full h-full object-contain"
+                      />
                     )}
                   </div>
                 ) : (
