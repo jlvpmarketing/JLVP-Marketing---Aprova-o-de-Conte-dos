@@ -40,23 +40,18 @@ export const ClientPortalView: React.FC = () => {
   // Safely extract project key from context or URL search params
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const effectiveProjectKey = (portalProjectKey || urlParams?.get('project') || '').trim();
+  const keyLower = effectiveProjectKey.toLowerCase();
 
-  // Active non-deleted sets
-  const deletedProjIds = getDeletedProjectIds();
-  const deletedCliIds = getDeletedClientIds();
-  const deletedPostIds = getDeletedPostIds();
-
-  const activeProjects = projects.filter(p => !deletedProjIds.has(p.id) && !deletedCliIds.has(p.clientId));
-  const activeClients = clients.filter(c => !deletedCliIds.has(c.id));
-
-  // Find matching project in context (by key or id, case-insensitive)
-  const matchedProject = effectiveProjectKey ? activeProjects.find(p => 
-    p.clientAccessKey?.trim().toLowerCase() === effectiveProjectKey.toLowerCase() ||
-    p.id?.trim().toLowerCase() === effectiveProjectKey.toLowerCase()
+  // Find matching project in context (by key or id or name, case-insensitive)
+  const matchedProject = keyLower ? projects.find(p => 
+    (p.clientAccessKey && p.clientAccessKey.trim().toLowerCase() === keyLower) ||
+    (p.id && p.id.trim().toLowerCase() === keyLower) ||
+    (p.name && p.name.trim().toLowerCase() === keyLower)
   ) : null;
-  const matchedClient = matchedProject ? activeClients.find(c => c.id === matchedProject.clientId) : null;
 
-  // Local fallback state loaded directly from server /api/sync if context is loading
+  const matchedClient = matchedProject ? clients.find(c => c.id === matchedProject.clientId) : null;
+
+  // Local fallback state loaded directly from server /api/sync
   const [serverData, setServerData] = useState<{
     project: FolderProject | null;
     client: Client | null;
@@ -68,65 +63,74 @@ export const ClientPortalView: React.FC = () => {
     fetch('/api/sync')
       .then(res => res.json())
       .then(db => {
-        if (db && db.projects) {
-          const freshDelProj = getDeletedProjectIds();
-          const freshDelCli = getDeletedClientIds();
-          const freshDelPosts = getDeletedPostIds();
+        if (db && db.projects && db.projects.length > 0) {
+          let srvProj = null;
 
-          const srvProjects = (db.projects || []).filter((p: any) => !freshDelProj.has(p.id) && !freshDelCli.has(p.clientId));
-          const srvClients = (db.clients || []).filter((c: any) => !freshDelCli.has(c.id));
-          const srvPosts = (db.posts || []).filter((post: any) => 
-            !freshDelPosts.has(post.id) && !freshDelProj.has(post.projectId) && !freshDelCli.has(post.clientId)
-          );
-
-          let foundProj = null;
-          if (effectiveProjectKey) {
-            foundProj = srvProjects.find((p: any) => 
-              p.clientAccessKey?.trim().toLowerCase() === effectiveProjectKey.toLowerCase() ||
-              p.id?.trim().toLowerCase() === effectiveProjectKey.toLowerCase()
+          if (keyLower) {
+            srvProj = db.projects.find((p: any) => 
+              (p.clientAccessKey && p.clientAccessKey.trim().toLowerCase() === keyLower) ||
+              (p.id && p.id.trim().toLowerCase() === keyLower) ||
+              (p.name && p.name.trim().toLowerCase() === keyLower)
             );
-          } else if (srvProjects.length > 0) {
-            foundProj = srvProjects[0];
+            if (!srvProj) {
+              srvProj = db.projects.find((p: any) => 
+                p.clientAccessKey && p.clientAccessKey.toLowerCase().includes(keyLower)
+              );
+            }
           }
 
-          const foundCli = foundProj 
-            ? srvClients.find((c: any) => c.id === foundProj.clientId) 
-            : (srvClients[0] || null);
+          if (!srvProj) {
+            srvProj = db.projects[0];
+          }
 
-          const foundPosts = foundProj 
-            ? srvPosts.filter((post: any) => post.projectId === foundProj.id)
-            : (foundCli ? srvPosts.filter((post: any) => post.clientId === foundCli.id) : []);
+          if (srvProj) {
+            const srvCli = (db.clients || []).find((c: any) => c.id === srvProj.clientId) || {
+              id: srvProj.clientId || 'cli-fallback',
+              name: 'Cliente',
+              company: srvProj.name || 'Cliente',
+              brandColor: '#4F46E5',
+              whatsappGroupLink: '',
+            };
+            const srvPosts = (db.posts || []).filter((post: any) => post.projectId === srvProj.id);
 
-          if (foundProj && foundCli) {
             setServerData({
-              project: foundProj,
-              client: foundCli,
-              posts: foundPosts
+              project: srvProj,
+              client: srvCli,
+              posts: srvPosts
             });
             setSyncFailed(false);
-          } else {
-            setSyncFailed(true);
           }
         }
       })
-      .catch(() => setSyncFailed(true));
+      .catch((err) => {
+        console.warn('Erro ao carregar dados do servidor:', err);
+        setSyncFailed(true);
+      });
   };
 
   useEffect(() => {
-    if (matchedProject && matchedClient) return;
     fetchDirectServerData();
-  }, [matchedProject, matchedClient, effectiveProjectKey]);
+  }, [effectiveProjectKey]);
 
+  // Resolve current project with cascading fallback
   const currentProject = matchedProject 
-    || (serverData?.project && !deletedProjIds.has(serverData.project.id) && !deletedCliIds.has(serverData.project.clientId) ? serverData.project : null) 
-    || (!effectiveProjectKey && activeProjects.length > 0 ? activeProjects[0] : null);
+    || serverData?.project
+    || (projects.length > 0 ? projects[0] : null);
 
+  // Resolve client with guaranteed non-null fallback once project exists
   const client = matchedClient 
-    || (serverData?.client && !deletedCliIds.has(serverData.client.id) ? serverData.client : null) 
-    || (currentProject ? activeClients.find(c => c.id === currentProject.clientId) : null) 
-    || (!effectiveProjectKey && activeClients.length > 0 ? activeClients[0] : null);
+    || (serverData?.client && currentProject && serverData.client.id === currentProject.clientId ? serverData.client : null)
+    || (currentProject ? clients.find(c => c.id === currentProject.clientId) : null)
+    || serverData?.client
+    || (currentProject ? {
+        id: currentProject.clientId || 'cli-fallback',
+        name: 'Cliente',
+        company: currentProject.name || 'Cliente',
+        brandColor: '#4F46E5',
+        whatsappGroupLink: '',
+      } as Client : null);
 
-  const clientProjects = client ? activeProjects.filter(p => p.clientId === client.id) : [];
+  const clientProjects = client ? projects.filter(p => p.clientId === client.id) : [];
 
   // Folder filter: default to currentProject.id so it displays only that project's posts
   const [selectedFolderId, setSelectedFolderId] = useState<string>(() => currentProject?.id || 'all');
@@ -151,23 +155,30 @@ export const ClientPortalView: React.FC = () => {
     return () => clearTimeout(timer);
   }, [currentProject, client]);
 
-  // All client posts matching the selected folder or project (without month filter)
+  // Raw posts from context or server
   const rawPostsList = (posts && posts.length > 0) ? posts : (serverData?.posts || []);
-  const effectivePostsList = rawPostsList.filter(p => 
-    !deletedPostIds.has(p.id) && !deletedProjIds.has(p.projectId) && !deletedCliIds.has(p.clientId)
-  );
 
-  const clientPosts = effectivePostsList.filter(p => {
+  // Filter posts for this client and project/folder
+  const filteredPosts = rawPostsList.filter(p => {
     if (selectedFolderId && selectedFolderId !== 'all') {
       return p.projectId === selectedFolderId;
     }
-    if (currentProject && p.projectId === currentProject.id) {
-      return true;
+    if (currentProject) {
+      return p.projectId === currentProject.id;
     }
-    if (client && p.clientId === client.id) {
-      return true;
+    if (client) {
+      return p.clientId === client.id;
     }
     return false;
+  });
+
+  // SORT BY DATE ASCENDING: Closest scheduled date first (e.g. dia 2, dia 4, dia 6)
+  const clientPosts = [...filteredPosts].sort((a, b) => {
+    const timeA = new Date(a.scheduledDate || 0).getTime();
+    const timeB = new Date(b.scheduledDate || 0).getTime();
+    if (isNaN(timeA)) return 1;
+    if (isNaN(timeB)) return -1;
+    return timeA - timeB; // Earliest scheduled date first
   });
 
   const activeDisplayProject = (selectedFolderId && selectedFolderId !== 'all')
@@ -584,10 +595,10 @@ export const ClientPortalView: React.FC = () => {
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  Todas as Pastas ({effectivePostsList.filter(p => p.clientId === client?.id).length})
+                  Todas as Pastas ({rawPostsList.filter(p => p.clientId === client?.id).length})
                 </button>
                 {clientProjects.map(proj => {
-                  const projCount = effectivePostsList.filter(p => p.projectId === proj.id).length;
+                  const projCount = rawPostsList.filter(p => p.projectId === proj.id).length;
                   return (
                     <button
                       key={proj.id}
