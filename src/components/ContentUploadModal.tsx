@@ -168,9 +168,18 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     for (const file of Array.from(files)) {
       try {
         if (file.type.startsWith('image/')) {
-          // Compress image to ensure fast cloud sync
-          const compressed = await compressImage(file, 850, 1100, 0.65);
-          newUrls.push(compressed);
+          // Compress image and stream directly to server disk
+          const compressed = await compressImage(file, 900, 1200, 0.70);
+          try {
+            const serverUrl = await serverSync.uploadMedia(compressed, 'image/jpeg', file.name);
+            if (serverUrl && serverUrl.startsWith('/api/media/')) {
+              newUrls.push(serverUrl);
+            } else {
+              newUrls.push(compressed);
+            }
+          } catch {
+            newUrls.push(compressed);
+          }
         } else if (file.type.startsWith('video/')) {
           // Allow video files directly up to 80MB
           if (file.size > 80 * 1024 * 1024) {
@@ -202,7 +211,16 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
             reader.onerror = reject;
             reader.readAsDataURL(file);
           });
-          newUrls.push(base64);
+          try {
+            const serverUrl = await serverSync.uploadMedia(base64, file.type || 'application/octet-stream', file.name);
+            if (serverUrl && serverUrl.startsWith('/api/media/')) {
+              newUrls.push(serverUrl);
+            } else {
+              newUrls.push(base64);
+            }
+          } catch {
+            newUrls.push(base64);
+          }
         }
       } catch (err) {
         console.warn('Erro ao processar mídia:', err);
@@ -364,8 +382,8 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
           if (url.startsWith('/api/media/') || url.startsWith('http://') || url.startsWith('https://')) {
             return url;
           }
-          // If it's a large video base64, store to server disk to ensure cross-device playback
-          if (url.startsWith('data:video') || url.length > 250 * 1024) {
+          // If it is any base64 data, store to server disk immediately to guarantee zero localStorage overflow
+          if (url.startsWith('data:')) {
             const mime = url.startsWith('data:video') ? 'video/mp4' : 'image/jpeg';
             try {
               const serverUrl = await serverSync.uploadMedia(url, mime);

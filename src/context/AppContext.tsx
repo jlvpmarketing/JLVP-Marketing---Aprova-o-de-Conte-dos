@@ -152,6 +152,13 @@ const DELETED_POST_IDS_KEY = 'aprovaflow_deleted_posts_v1';
 const DELETED_PROJECT_IDS_KEY = 'aprovaflow_deleted_projects_v1';
 const DELETED_CLIENT_IDS_KEY = 'aprovaflow_deleted_clients_v1';
 
+export const TEST_POST_BLACKLIST = new Set([
+  'post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6',
+  'post-1793545935875-653xur',
+  'post-1793543932507-xyxu93',
+  'post-1793373676264-79aj5d',
+]);
+
 export const getDeletedPostIds = (): Set<string> => {
   try {
     const saved = localStorage.getItem(DELETED_POST_IDS_KEY);
@@ -252,7 +259,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const saved = localStorage.getItem(STORAGE_KEYS.POSTS);
       if (saved) {
         const parsed: PostContent[] = JSON.parse(saved);
-        return parsed.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
+        return parsed.filter(p => !TEST_POST_BLACKLIST.has(p.id));
       }
       return [];
     } catch {
@@ -444,7 +451,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           try { localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(serverDb.auditLogs)); } catch {}
         }
         if (serverDb.posts && serverDb.posts.length > 0) {
-          const cleanServerPosts = serverDb.posts.filter(p => !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
+          const cleanServerPosts = serverDb.posts.filter(p => !TEST_POST_BLACKLIST.has(p.id));
           setPosts(prev => {
             const serverMap = new Map(cleanServerPosts.map(p => [p.id, p]));
             const localMap = new Map(prev.map(p => [p.id, p]));
@@ -460,7 +467,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               return srvPost;
             });
 
-            const pending = prev.filter(p => !serverMap.has(p.id) && !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id));
+            const pending = prev.filter(p => !serverMap.has(p.id) && !TEST_POST_BLACKLIST.has(p.id));
             return [...merged, ...pending];
           });
         }
@@ -477,7 +484,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const clean = srvPosts.filter(p => 
             !deletedPosts.has(p.id) && 
             !deletedProjects.has(p.projectId) && 
-            !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id)
+            !TEST_POST_BLACKLIST.has(p.id)
           );
 
           setPosts(prev => {
@@ -559,7 +566,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const cleanRemote = remotePosts.filter(p => 
           !deletedPosts.has(p.id) && 
           !deletedProjects.has(p.projectId) && 
-          !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id)
+          !TEST_POST_BLACKLIST.has(p.id)
         );
 
         setPosts(prev => {
@@ -588,7 +595,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           // 2. Preserve valid local-only posts
           const localOnly = validPrev.filter(p => 
             !remoteMap.has(p.id) && 
-            !['post-1', 'post-2', 'post-3', 'post-4', 'post-5', 'post-6'].includes(p.id)
+            !TEST_POST_BLACKLIST.has(p.id)
           );
 
           return [...mergedRemote, ...localOnly];
@@ -651,7 +658,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [projects]);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEYS.POSTS, JSON.stringify(posts)); } catch (e) { console.warn(e); }
+    try {
+      // Sanitize base64 from local storage payload to guarantee zero QuotaExceededError
+      const safePosts = posts.filter(p => !TEST_POST_BLACKLIST.has(p.id)).map(p => {
+        const hasBase64 = p.mediaUrls?.some(u => u && u.startsWith('data:'));
+        if (hasBase64) {
+          return {
+            ...p,
+            mediaUrls: p.mediaUrls?.map(u => (u && u.startsWith('data:')) ? '/api/media/fallback_sample.mp4' : u)
+          };
+        }
+        return p;
+      });
+      localStorage.setItem(STORAGE_KEYS.POSTS, JSON.stringify(safePosts));
+    } catch (e) {
+      console.warn('localStorage post save warning:', e);
+    }
   }, [posts]);
 
   useEffect(() => {

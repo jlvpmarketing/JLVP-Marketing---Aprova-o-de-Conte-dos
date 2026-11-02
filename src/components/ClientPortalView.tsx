@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useApp, getDeletedPostIds, getDeletedProjectIds, getDeletedClientIds } from '../context/AppContext';
+import { useApp, getDeletedPostIds, getDeletedProjectIds, getDeletedClientIds, TEST_POST_BLACKLIST } from '../context/AppContext';
 import { PostContent, FolderProject, Client } from '../types';
 import { PostApprovalCard } from './PostApprovalCard';
 import { PostDetailView } from './PostDetailView';
@@ -91,7 +91,7 @@ export const ClientPortalView: React.FC = () => {
               brandColor: '#4F46E5',
               whatsappGroupLink: '',
             };
-            const srvPosts = (db.posts || []).filter((post: any) => post.projectId === srvProj.id);
+            const srvPosts = (db.posts || []).filter((post: any) => post.projectId === srvProj.id && !TEST_POST_BLACKLIST.has(post.id));
 
             setServerData({
               project: srvProj,
@@ -155,8 +155,9 @@ export const ClientPortalView: React.FC = () => {
     return () => clearTimeout(timer);
   }, [currentProject, client]);
 
-  // Raw posts from context or server
-  const rawPostsList = (posts && posts.length > 0) ? posts : (serverData?.posts || []);
+  // Raw posts from context or server, sanitized to ensure test posts never appear
+  const rawPostsList = ((posts && posts.length > 0) ? posts : (serverData?.posts || []))
+    .filter(p => !TEST_POST_BLACKLIST.has(p.id));
 
   // Filter posts for this client and project/folder
   const filteredPosts = rawPostsList.filter(p => {
