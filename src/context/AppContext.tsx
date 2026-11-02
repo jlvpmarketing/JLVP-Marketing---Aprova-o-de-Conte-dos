@@ -150,6 +150,7 @@ const STORAGE_KEYS = {
 
 const DELETED_POST_IDS_KEY = 'aprovaflow_deleted_posts_v1';
 const DELETED_PROJECT_IDS_KEY = 'aprovaflow_deleted_projects_v1';
+const DELETED_CLIENT_IDS_KEY = 'aprovaflow_deleted_clients_v1';
 
 export const getDeletedPostIds = (): Set<string> => {
   try {
@@ -182,6 +183,23 @@ export const addDeletedProjectId = (id: string) => {
     const set = getDeletedProjectIds();
     set.add(id);
     localStorage.setItem(DELETED_PROJECT_IDS_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+};
+
+export const getDeletedClientIds = (): Set<string> => {
+  try {
+    const saved = localStorage.getItem(DELETED_CLIENT_IDS_KEY);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+export const addDeletedClientId = (id: string) => {
+  try {
+    const set = getDeletedClientIds();
+    set.add(id);
+    localStorage.setItem(DELETED_CLIENT_IDS_KEY, JSON.stringify(Array.from(set)));
   } catch {}
 };
 
@@ -977,6 +995,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     setClients(prev => [...prev, newClient]);
     setSelectedClientId(newClient.id);
+    serverSync.saveClient(newClient);
     firestoreSync.saveClient(newClient);
     addAuditLog('client_created', `Cadastrou o cliente "${newClient.company}" (${newClient.name}).`, newClient.id, newClient.company);
     addToast('success', 'Cliente Cadastrado', `${newClient.name} foi adicionado à agência.`);
@@ -987,6 +1006,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setClients(prev => prev.map(c => {
       if (c.id === id) {
         const updated = { ...c, ...updates };
+        serverSync.saveClient(updated);
         firestoreSync.saveClient(updated);
         return updated;
       }
@@ -1003,18 +1023,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const postsToDelete = posts.filter(p => p.clientId === id || clientProjectIds.has(p.projectId));
     const postIdsToDelete = new Set(postsToDelete.map(p => p.id));
 
-    // Delete projects in Firestore
-    clientProjects.forEach(p => firestoreSync.deleteProject(p.id));
+    // Register tombstones immediately to prevent resurrection
+    addDeletedClientId(id);
+    clientProjectIds.forEach(projId => addDeletedProjectId(projId));
+    postIdsToDelete.forEach(postId => addDeletedPostId(postId));
 
-    // Delete posts in Firestore
-    postsToDelete.forEach(p => firestoreSync.deletePost(p.id));
+    // Delete on full-stack Express server (/data/db.json)
+    serverSync.deleteClient(id);
+    clientProjects.forEach(p => serverSync.deleteProject(p.id));
+    postsToDelete.forEach(p => serverSync.deletePost(p.id));
 
-    // Delete client in Firestore
-    firestoreSync.deleteClient(id);
+    // Delete in Firestore
+    clientProjects.forEach(p => firestoreSync.deleteProject(p.id).catch(() => {}));
+    postsToDelete.forEach(p => firestoreSync.deletePost(p.id).catch(() => {}));
+    firestoreSync.deleteClient(id).catch(() => {});
 
     // Delete notifications for this client and its posts in Firestore & state
     const notifsToDelete = notifications.filter(n => n.clientId === id || (n.postId && postIdsToDelete.has(n.postId)));
-    notifsToDelete.forEach(n => firestoreSync.deleteNotification(n.id));
+    notifsToDelete.forEach(n => firestoreSync.deleteNotification(n.id).catch(() => {}));
     setNotifications(prev => prev.filter(n => n.clientId !== id && (!n.postId || !postIdsToDelete.has(n.postId))));
 
     // Update states
@@ -1057,6 +1083,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setProjects(prev => [...prev, newProject]);
     setSelectedProjectId(newProject.id);
+    serverSync.saveProject(newProject);
     firestoreSync.saveProject(newProject);
     addAuditLog('project_created', `Criou a pasta de projeto "${newProject.name}".`, newProject.id, newProject.name);
     addToast('success', 'Pasta de Projeto Criada', `Pasta "${newProject.name}" pronta para receber posts.`);
@@ -1067,6 +1094,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setProjects(prev => prev.map(p => {
       if (p.id === id) {
         const updated = { ...p, ...updates };
+        serverSync.saveProject(updated);
         firestoreSync.saveProject(updated);
         return updated;
       }

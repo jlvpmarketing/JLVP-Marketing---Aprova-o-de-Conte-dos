@@ -95,6 +95,34 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  // Delete Client with Cascade Delete of all linked Projects and Posts
+  app.delete('/api/clients/:id', (req, res) => {
+    const { id } = req.params;
+    const db = readDatabase();
+    const clientToDelete = (db.clients || []).find((c: any) => c.id === id);
+    db.clients = (db.clients || []).filter((c: any) => c.id !== id);
+
+    // Find all project IDs belonging to this client
+    const clientProjects = (db.projects || []).filter((p: any) => p.clientId === id);
+    const clientProjectIds = new Set(clientProjects.map((p: any) => p.id));
+    db.projects = (db.projects || []).filter((p: any) => p.clientId !== id);
+
+    // Find and delete all posts belonging to this client or its projects
+    const deletedPostIds = new Set(
+      (db.posts || []).filter((p: any) => p.clientId === id || clientProjectIds.has(p.projectId)).map((p: any) => p.id)
+    );
+    db.posts = (db.posts || []).filter((p: any) => p.clientId !== id && !clientProjectIds.has(p.projectId));
+
+    // Clean notifications
+    db.notifications = (db.notifications || []).filter((n: any) => 
+      n.clientId !== id && (!n.projectId || !clientProjectIds.has(n.projectId)) && (!n.postId || !deletedPostIds.has(n.postId))
+    );
+
+    writeDatabase(db);
+    console.log(`🗑️ Cliente "${clientToDelete?.name || clientToDelete?.company || id}" excluído com ${clientProjects.length} projetos e ${deletedPostIds.size} posts vinculados.`);
+    res.json({ success: true, deletedProjectsCount: clientProjects.length, deletedPostsCount: deletedPostIds.size });
+  });
+
   // Delete Project with Cascade Delete of all linked Posts
   app.delete('/api/projects/:id', (req, res) => {
     const { id } = req.params;

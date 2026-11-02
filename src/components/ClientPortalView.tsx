@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, getDeletedPostIds, getDeletedProjectIds, getDeletedClientIds } from '../context/AppContext';
 import { PostContent, FolderProject, Client } from '../types';
 import { PostApprovalCard } from './PostApprovalCard';
 import { PostDetailView } from './PostDetailView';
@@ -41,12 +41,20 @@ export const ClientPortalView: React.FC = () => {
   const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
   const effectiveProjectKey = (portalProjectKey || urlParams?.get('project') || '').trim();
 
+  // Active non-deleted sets
+  const deletedProjIds = getDeletedProjectIds();
+  const deletedCliIds = getDeletedClientIds();
+  const deletedPostIds = getDeletedPostIds();
+
+  const activeProjects = projects.filter(p => !deletedProjIds.has(p.id) && !deletedCliIds.has(p.clientId));
+  const activeClients = clients.filter(c => !deletedCliIds.has(c.id));
+
   // Find matching project in context (by key or id, case-insensitive)
-  const matchedProject = projects.find(p => 
+  const matchedProject = effectiveProjectKey ? activeProjects.find(p => 
     p.clientAccessKey?.trim().toLowerCase() === effectiveProjectKey.toLowerCase() ||
     p.id?.trim().toLowerCase() === effectiveProjectKey.toLowerCase()
-  );
-  const matchedClient = matchedProject ? clients.find(c => c.id === matchedProject.clientId) : null;
+  ) : null;
+  const matchedClient = matchedProject ? activeClients.find(c => c.id === matchedProject.clientId) : null;
 
   // Local fallback state loaded directly from server /api/sync if context is loading
   const [serverData, setServerData] = useState<{
@@ -61,14 +69,33 @@ export const ClientPortalView: React.FC = () => {
       .then(res => res.json())
       .then(db => {
         if (db && db.projects) {
-          const foundProj = db.projects.find((p: any) => 
-            p.clientAccessKey?.trim().toLowerCase() === effectiveProjectKey.toLowerCase() ||
-            p.id?.trim().toLowerCase() === effectiveProjectKey.toLowerCase()
+          const freshDelProj = getDeletedProjectIds();
+          const freshDelCli = getDeletedClientIds();
+          const freshDelPosts = getDeletedPostIds();
+
+          const srvProjects = (db.projects || []).filter((p: any) => !freshDelProj.has(p.id) && !freshDelCli.has(p.clientId));
+          const srvClients = (db.clients || []).filter((c: any) => !freshDelCli.has(c.id));
+          const srvPosts = (db.posts || []).filter((post: any) => 
+            !freshDelPosts.has(post.id) && !freshDelProj.has(post.projectId) && !freshDelCli.has(post.clientId)
           );
-          const foundCli = foundProj ? db.clients?.find((c: any) => c.id === foundProj.clientId) : null;
-          const foundPosts = foundProj ? (db.posts || []).filter((post: any) => 
-            post.projectId === foundProj.id || (foundCli && post.clientId === foundCli.id)
-          ) : [];
+
+          let foundProj = null;
+          if (effectiveProjectKey) {
+            foundProj = srvProjects.find((p: any) => 
+              p.clientAccessKey?.trim().toLowerCase() === effectiveProjectKey.toLowerCase() ||
+              p.id?.trim().toLowerCase() === effectiveProjectKey.toLowerCase()
+            );
+          } else if (srvProjects.length > 0) {
+            foundProj = srvProjects[0];
+          }
+
+          const foundCli = foundProj 
+            ? srvClients.find((c: any) => c.id === foundProj.clientId) 
+            : (srvClients[0] || null);
+
+          const foundPosts = foundProj 
+            ? srvPosts.filter((post: any) => post.projectId === foundProj.id)
+            : (foundCli ? srvPosts.filter((post: any) => post.clientId === foundCli.id) : []);
 
           if (foundProj && foundCli) {
             setServerData({
@@ -90,9 +117,25 @@ export const ClientPortalView: React.FC = () => {
     fetchDirectServerData();
   }, [matchedProject, matchedClient, effectiveProjectKey]);
 
-  const currentProject = matchedProject || serverData?.project || (projects.length > 0 ? projects[0] : null);
-  const client = matchedClient || serverData?.client || (currentProject ? clients.find(c => c.id === currentProject.clientId) : null) || (clients.length > 0 ? clients[0] : null);
-  const clientProjects = client ? projects.filter(p => p.clientId === client.id) : [];
+  const currentProject = matchedProject 
+    || (serverData?.project && !deletedProjIds.has(serverData.project.id) && !deletedCliIds.has(serverData.project.clientId) ? serverData.project : null) 
+    || (!effectiveProjectKey && activeProjects.length > 0 ? activeProjects[0] : null);
+
+  const client = matchedClient 
+    || (serverData?.client && !deletedCliIds.has(serverData.client.id) ? serverData.client : null) 
+    || (currentProject ? activeClients.find(c => c.id === currentProject.clientId) : null) 
+    || (!effectiveProjectKey && activeClients.length > 0 ? activeClients[0] : null);
+
+  const clientProjects = client ? activeProjects.filter(p => p.clientId === client.id) : [];
+
+  // Folder filter: default to currentProject.id so it displays only that project's posts
+  const [selectedFolderId, setSelectedFolderId] = useState<string>(() => currentProject?.id || 'all');
+
+  useEffect(() => {
+    if (currentProject) {
+      setSelectedFolderId(currentProject.id);
+    }
+  }, [currentProject?.id]);
 
   // Loading timeout threshold: after 3.5s offers instant reconnect
   const [loadTimeout, setLoadTimeout] = useState(false);
@@ -108,13 +151,14 @@ export const ClientPortalView: React.FC = () => {
     return () => clearTimeout(timer);
   }, [currentProject, client]);
 
-  // Folder filter: allows viewing all client posts or a specific folder
-  const [selectedFolderId, setSelectedFolderId] = useState<string>('all');
-
   // All client posts matching the selected folder or project (without month filter)
-  const effectivePostsList = (posts && posts.length > 0) ? posts : (serverData?.posts || []);
+  const rawPostsList = (posts && posts.length > 0) ? posts : (serverData?.posts || []);
+  const effectivePostsList = rawPostsList.filter(p => 
+    !deletedPostIds.has(p.id) && !deletedProjIds.has(p.projectId) && !deletedCliIds.has(p.clientId)
+  );
+
   const clientPosts = effectivePostsList.filter(p => {
-    if (selectedFolderId !== 'all') {
+    if (selectedFolderId && selectedFolderId !== 'all') {
       return p.projectId === selectedFolderId;
     }
     if (currentProject && p.projectId === currentProject.id) {
@@ -125,6 +169,10 @@ export const ClientPortalView: React.FC = () => {
     }
     return false;
   });
+
+  const activeDisplayProject = (selectedFolderId && selectedFolderId !== 'all')
+    ? (clientProjects.find(p => p.id === selectedFolderId) || currentProject)
+    : currentProject;
 
   // Distinct main views separated into different parts as requested
   const [mainSection, setMainSection] = useState<'content' | 'calendar' | 'guide'>('content');
@@ -490,10 +538,10 @@ export const ClientPortalView: React.FC = () => {
                   Portal de Conteúdos
                 </span>
                 <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                  {currentProject?.name || client?.company}
+                  {activeDisplayProject?.name || currentProject?.name || client?.company}
                 </h2>
                 <p className="text-xs text-zinc-300 mt-1 max-w-xl leading-relaxed">
-                  {currentProject?.description || 'Clique em qualquer publicação para conferir a legenda, mídias e aprovar com um clique.'}
+                  {activeDisplayProject?.description || currentProject?.description || 'Clique em qualquer publicação para conferir a legenda, mídias e aprovar com um clique.'}
                 </p>
               </div>
 
@@ -536,10 +584,10 @@ export const ClientPortalView: React.FC = () => {
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  Todas as Pastas ({posts.filter(p => p.clientId === client?.id).length})
+                  Todas as Pastas ({effectivePostsList.filter(p => p.clientId === client?.id).length})
                 </button>
                 {clientProjects.map(proj => {
-                  const projCount = posts.filter(p => p.projectId === proj.id).length;
+                  const projCount = effectivePostsList.filter(p => p.projectId === proj.id).length;
                   return (
                     <button
                       key={proj.id}

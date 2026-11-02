@@ -249,8 +249,12 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                               controls
                               playsInline
                               autoPlay
+                              muted
                               loop
                               className="w-full h-full object-contain"
+                              onLoadedMetadata={(e) => {
+                                e.currentTarget.play().catch(() => {});
+                              }}
                             />
                           </div>
                         );
@@ -335,8 +339,12 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                           controls
                           playsInline
                           autoPlay
+                          muted
                           loop
                           className="w-full h-full object-contain"
+                          onLoadedMetadata={(e) => {
+                            e.currentTarget.play().catch(() => {});
+                          }}
                         />
                       )
                     ) : (
