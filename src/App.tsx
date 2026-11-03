@@ -42,7 +42,12 @@ const MainApp: React.FC = () => {
 
   const activeClientIds = new Set(clients.map(c => c.id));
   const activeProjectIds = new Set(projects.map(p => p.id));
-  const activePosts = posts.filter(p => activeClientIds.has(p.clientId) && activeProjectIds.has(p.projectId));
+  const activePosts = posts.filter(p => {
+    if (!p) return false;
+    const clientOk = activeClientIds.size === 0 || !p.clientId || activeClientIds.has(p.clientId);
+    const projectOk = activeProjectIds.size === 0 || !p.projectId || activeProjectIds.has(p.projectId);
+    return clientOk || projectOk;
+  });
 
   // Global modals
   const [themeCustomizerOpen, setThemeCustomizerOpen] = useState(false);

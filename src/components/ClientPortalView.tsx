@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useApp, getDeletedPostIds, getDeletedProjectIds, getDeletedClientIds, TEST_POST_BLACKLIST, isTestOrBlacklistedPost } from '../context/AppContext';
 import { firestoreSync } from '../services/firestoreSync';
 import { PostContent, FolderProject, Client } from '../types';
+import { normalizePostStatus } from '../utils/contentTypeHelper';
 import { PostApprovalCard } from './PostApprovalCard';
 import { PostDetailView } from './PostDetailView';
 import { CalendarView } from './CalendarView';
@@ -130,16 +131,20 @@ export const ClientPortalView: React.FC = () => {
   const rawPostsList = ((posts && posts.length > 0) ? posts : (serverData?.posts || []))
     .filter(p => !isTestOrBlacklistedPost(p));
 
+  // Debug log requested by user to verify data arriving before render
+  console.log('Dados recebidos do banco:', rawPostsList);
+
   // Filter posts for this client and project/folder
   const filteredPosts = rawPostsList.filter(p => {
+    if (!p) return false;
     if (selectedFolderId && selectedFolderId !== 'all') {
-      return p.projectId === selectedFolderId;
+      if (p.projectId === selectedFolderId) return true;
     }
-    if (currentProject) {
-      return p.projectId === currentProject.id;
+    if (currentProject && p.projectId === currentProject.id) {
+      return true;
     }
-    if (client) {
-      return p.clientId === client.id;
+    if (client && p.clientId === client.id) {
+      return true;
     }
     return false;
   });
@@ -295,9 +300,9 @@ export const ClientPortalView: React.FC = () => {
     setChangesPost(p);
   };
 
-  const pendingPosts = clientPosts.filter(p => p.status === 'pending_approval');
-  const changesPosts = clientPosts.filter(p => p.status === 'changes_requested');
-  const approvedPosts = clientPosts.filter(p => p.status === 'approved');
+  const pendingPosts = clientPosts.filter(p => normalizePostStatus(p.status) === 'pending_approval');
+  const changesPosts = clientPosts.filter(p => normalizePostStatus(p.status) === 'changes_requested');
+  const approvedPosts = clientPosts.filter(p => normalizePostStatus(p.status) === 'approved');
 
   // Total comments in this client's posts
   const projectCommentsCount = clientPosts.reduce((acc, p) => acc + (p.comments?.length || 0), 0);

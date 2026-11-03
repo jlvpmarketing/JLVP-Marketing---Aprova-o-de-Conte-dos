@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Client, PostContent, NotificationItem } from '../types';
 import { CalendarView } from './CalendarView';
 import { PostDetailView } from './PostDetailView';
-import { getContentTypeInfo } from '../utils/contentTypeHelper';
+import { getContentTypeInfo, normalizePostStatus } from '../utils/contentTypeHelper';
 import { 
   Users, 
   Bell, 
@@ -72,7 +72,12 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
   // Active clients & projects filter - ignore any posts from deleted clients or projects
   const activeClientIds = new Set(clients.map(c => c.id));
   const activeProjectIds = new Set(projects.map(p => p.id));
-  const activePosts = posts.filter(p => activeClientIds.has(p.clientId) && activeProjectIds.has(p.projectId));
+  const activePosts = posts.filter(p => {
+    if (!p) return false;
+    const clientOk = activeClientIds.size === 0 || !p.clientId || activeClientIds.has(p.clientId);
+    const projectOk = activeProjectIds.size === 0 || !p.projectId || activeProjectIds.has(p.projectId);
+    return clientOk || projectOk;
+  });
 
   // Month-filtered posts across active clients
   const monthFilteredPosts = activePosts.filter(p => {
@@ -83,9 +88,9 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
   });
 
   // Global KPIs across active clients (filtered by month)
-  const pendingPosts = monthFilteredPosts.filter(p => p.status === 'pending_approval');
-  const changesPosts = monthFilteredPosts.filter(p => p.status === 'changes_requested');
-  const approvedPosts = monthFilteredPosts.filter(p => p.status === 'approved');
+  const pendingPosts = monthFilteredPosts.filter(p => normalizePostStatus(p.status) === 'pending_approval');
+  const changesPosts = monthFilteredPosts.filter(p => normalizePostStatus(p.status) === 'changes_requested');
+  const approvedPosts = monthFilteredPosts.filter(p => normalizePostStatus(p.status) === 'approved');
 
   const displayedNotifications = filterNotifs === 'unread'
     ? notifications.filter(n => !n.read)

@@ -1,12 +1,24 @@
 import { PostContent, ContentTypeFormat, MediaItem } from '../types';
 import { extractDriveFileId } from './drivePlayer';
 
-export function getPostContentType(post: PostContent): ContentTypeFormat {
+export function normalizePostStatus(status?: string): 'pending_approval' | 'changes_requested' | 'approved' {
+  if (!status) return 'pending_approval';
+  const s = status.trim().toLowerCase();
+  if (s === 'approved' || s === 'aprovado') return 'approved';
+  if (s === 'changes_requested' || s === 'changes' || s === 'alteracao' || s === 'em_alteracao' || s === 'ajuste') return 'changes_requested';
+  return 'pending_approval';
+}
+
+export function getPostContentType(post: PostContent | any): ContentTypeFormat {
+  if (!post) return 'static';
   if (post.contentType) {
     return post.contentType;
   }
+  if (post.type && ['static', 'carousel', 'reel', 'story'].includes(post.type)) {
+    return post.type as ContentTypeFormat;
+  }
 
-  const titleLower = post.title.toLowerCase();
+  const titleLower = (post.title || '').toLowerCase();
 
   if (
     post.platforms?.includes('reels') || 
@@ -25,7 +37,7 @@ export function getPostContentType(post: PostContent): ContentTypeFormat {
     return 'story';
   }
 
-  if (post.mediaType === 'carousel' || (post.mediaUrls && post.mediaUrls.length > 1)) {
+  if (post.mediaType === 'carousel' || (post.mediaUrls && post.mediaUrls.length > 1) || (post.media && post.media.length > 1)) {
     return 'carousel';
   }
 
@@ -188,5 +200,105 @@ export function getPostMediaList(post?: PostContent | null, resolvedUrls: string
   }
 
   return [];
+}
+
+export function normalizePostFromFirestore(raw: any, docId?: string): PostContent {
+  if (!raw) return raw;
+  const id = docId || raw.id || `post-${Date.now()}`;
+  const status = normalizePostStatus(raw.status);
+
+  // Normalize media arrays
+  let mediaUrls: string[] = [];
+  if (Array.isArray(raw.mediaUrls)) {
+    mediaUrls = raw.mediaUrls.filter(Boolean);
+  } else if (typeof raw.mediaUrls === 'string') {
+    mediaUrls = [raw.mediaUrls];
+  } else if (raw.imageUrl) {
+    mediaUrls = [raw.imageUrl];
+  } else if (raw.driveVideoUrl) {
+    mediaUrls = [raw.driveVideoUrl];
+  }
+
+  // Normalize media items with explicit type
+  let media: MediaItem[] = [];
+  if (Array.isArray(raw.media) && raw.media.length > 0) {
+    media = raw.media.map((item: any, i: number) => {
+      const url = item?.url || mediaUrls[i] || '';
+      const isDrive = isDriveVideoUrl(url);
+      const isVid = isDrive || isVideoUrl(url) || item?.type === 'video';
+      return {
+        url,
+        type: isVid ? ('video' as const) : ('image' as const),
+        name: item?.name,
+        driveFileId: isDrive ? (extractDriveFileId(url) || item?.driveFileId) : undefined,
+      };
+    });
+  } else if (mediaUrls.length > 0) {
+    media = mediaUrls.map(u => {
+      const isDrive = isDriveVideoUrl(u);
+      const isVid = isDrive || isVideoUrl(u);
+      return {
+        url: u,
+        type: isVid ? ('video' as const) : ('image' as const),
+        driveFileId: isDrive ? extractDriveFileId(u) || undefined : undefined,
+      };
+    });
+  }
+
+  // Normalize contentType and mediaType
+  let contentType = raw.contentType;
+  if (!contentType && raw.type && ['static', 'carousel', 'reel', 'story'].includes(raw.type)) {
+    contentType = raw.type;
+  }
+  if (!contentType) {
+    if (media.length > 1 || raw.mediaType === 'carousel') {
+      contentType = 'carousel';
+    } else if (raw.mediaType === 'video' || raw.mediaType === 'drive_video' || raw.driveVideoUrl || media.some(m => m.type === 'video')) {
+      contentType = 'reel';
+    } else {
+      contentType = 'static';
+    }
+  }
+
+  let mediaType = raw.mediaType;
+  if (!mediaType) {
+    if (contentType === 'carousel') {
+      mediaType = 'carousel';
+    } else if (raw.driveVideoUrl || media.some(m => isDriveVideoUrl(m.url))) {
+      mediaType = 'drive_video';
+    } else if (media.some(m => m.type === 'video')) {
+      mediaType = 'video';
+    } else {
+      mediaType = 'image';
+    }
+  }
+
+  const scheduledDate = raw.scheduledDate || raw.date || raw.scheduledAt || new Date().toISOString().slice(0, 16);
+
+  return {
+    id,
+    projectId: raw.projectId || '',
+    clientId: raw.clientId || '',
+    title: raw.title || 'Sem título',
+    status,
+    contentType,
+    mediaType,
+    mediaUrls,
+    media,
+    imageUrl: raw.imageUrl || (media.length > 0 && media[0].type === 'image' ? media[0].url : undefined),
+    driveVideoUrl: raw.driveVideoUrl || (media.find(m => isDriveVideoUrl(m.url))?.url),
+    caption: raw.caption || '',
+    scheduledDate,
+    platforms: Array.isArray(raw.platforms) ? raw.platforms : ['instagram_feed'],
+    comments: Array.isArray(raw.comments) ? raw.comments : [],
+    requestedChangesNote: raw.requestedChangesNote,
+    supportFiles: Array.isArray(raw.supportFiles) ? raw.supportFiles : [],
+    approvedAt: raw.approvedAt,
+    approvedBy: raw.approvedBy,
+    createdAt: raw.createdAt || new Date().toISOString(),
+    updatedAt: raw.updatedAt || new Date().toISOString(),
+    createdByUserId: raw.createdByUserId,
+    createdByUserName: raw.createdByUserName,
+  };
 }
 

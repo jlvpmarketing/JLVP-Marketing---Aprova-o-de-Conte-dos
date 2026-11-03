@@ -13,7 +13,7 @@ import {
   Image as ImageIcon,
   Folder
 } from 'lucide-react';
-import { getContentTypeInfo } from '../utils/contentTypeHelper';
+import { getContentTypeInfo, normalizePostStatus } from '../utils/contentTypeHelper';
 
 interface CalendarViewProps {
   posts: PostContent[];
@@ -59,7 +59,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
 
   React.useEffect(() => {
     if (posts && posts.length > 0) {
-      const targetPosts = filterStatus === 'all' ? posts : posts.filter(p => p.status === filterStatus);
+      const targetPosts = filterStatus === 'all' ? posts : posts.filter(p => normalizePostStatus(p.status) === filterStatus);
       const hasPostsInMonth = targetPosts.some(p => {
         if (!p.scheduledDate) return false;
         const d = new Date(p.scheduledDate);
@@ -127,7 +127,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ posts, onSelectPost 
   const filteredPosts = posts.filter(p => {
     if (selectedProjectFilter !== 'all' && p.projectId !== selectedProjectFilter) return false;
     if (filterStatus === 'all') return true;
-    return p.status === filterStatus;
+    return normalizePostStatus(p.status) === filterStatus;
   });
 
   // Build grid calendar cells

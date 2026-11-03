@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db, testFirestoreConnection } from '../firebase';
 import { Client, FolderProject, PostContent, AgencyUser, AuditLogItem, AgencyConfig, NotificationItem, GeneralChatMessage, MediaItem } from '../types';
-import { isDriveVideoUrl, isVideoUrl } from '../utils/contentTypeHelper';
+import { isDriveVideoUrl, isVideoUrl, normalizePostFromFirestore, normalizePostStatus } from '../utils/contentTypeHelper';
 
 let isFirestoreConnected = false;
 
@@ -346,12 +346,14 @@ export const firestoreSync = {
   subscribeToPosts(onUpdate: (posts: PostContent[]) => void) {
     try {
       return onSnapshot(collection(db, 'posts'), (snapshot) => {
-        const loadedPosts = snapshot.docs.map(doc => doc.data() as PostContent);
+        const loadedPosts = snapshot.docs.map(doc => normalizePostFromFirestore(doc.data(), doc.id));
+        console.log('Dados recebidos do banco:', loadedPosts);
         onUpdate(loadedPosts);
       }, (err) => {
         console.warn('Assinatura de posts falhou:', err);
       });
-    } catch {
+    } catch (err) {
+      console.warn('Erro ao criar listener de posts:', err);
       return () => {};
     }
   },
@@ -444,7 +446,9 @@ export const firestoreSync = {
   async fetchAllPosts(): Promise<PostContent[]> {
     try {
       const snap = await getDocs(collection(db, 'posts'));
-      return snap.docs.map(d => d.data() as PostContent);
+      const posts = snap.docs.map(d => normalizePostFromFirestore(d.data(), d.id));
+      console.log('Dados recebidos do banco:', posts);
+      return posts;
     } catch (err) {
       console.warn('Erro ao consultar posts no Firestore:', err);
       return [];
@@ -454,7 +458,7 @@ export const firestoreSync = {
   async fetchAllProjects(): Promise<FolderProject[]> {
     try {
       const snap = await getDocs(collection(db, 'projects'));
-      return snap.docs.map(d => d.data() as FolderProject);
+      return snap.docs.map(d => ({ ...d.data(), id: d.id || d.data().id } as FolderProject));
     } catch (err) {
       console.warn('Erro ao consultar projetos no Firestore:', err);
       return [];
@@ -464,7 +468,7 @@ export const firestoreSync = {
   async fetchAllClients(): Promise<Client[]> {
     try {
       const snap = await getDocs(collection(db, 'clients'));
-      return snap.docs.map(d => d.data() as Client);
+      return snap.docs.map(d => ({ ...d.data(), id: d.id || d.data().id } as Client));
     } catch (err) {
       console.warn('Erro ao consultar clientes no Firestore:', err);
       return [];
@@ -484,23 +488,39 @@ export const firestoreSync = {
         getDocs(collection(db, 'posts'))
       ]);
 
-      const allProjects = projectsSnap.docs.map(d => d.data() as FolderProject);
-      const allClients = clientsSnap.docs.map(d => d.data() as Client);
-      const allPosts = postsSnap.docs.map(d => d.data() as PostContent);
+      const allProjects = projectsSnap.docs.map(d => ({ ...d.data(), id: d.id || d.data().id } as FolderProject));
+      const allClients = clientsSnap.docs.map(d => ({ ...d.data(), id: d.id || d.data().id } as Client));
+      const allPosts = postsSnap.docs.map(d => normalizePostFromFirestore(d.data(), d.id));
+      console.log('Dados recebidos do banco:', allPosts);
 
       if (allProjects.length === 0) return null;
 
-      let matchedProj = null;
-      if (keyLower) {
+      const safeKey = (keyLower || '').trim().toLowerCase();
+      let matchedProj: FolderProject | null = null;
+
+      if (safeKey) {
         matchedProj = allProjects.find(p =>
-          (p.clientAccessKey && p.clientAccessKey.trim().toLowerCase() === keyLower) ||
-          (p.id && p.id.trim().toLowerCase() === keyLower) ||
-          (p.name && p.name.trim().toLowerCase() === keyLower)
-        );
+          (p.clientAccessKey && p.clientAccessKey.trim().toLowerCase() === safeKey) ||
+          (p.id && p.id.trim().toLowerCase() === safeKey) ||
+          (p.name && p.name.trim().toLowerCase() === safeKey)
+        ) || null;
+
         if (!matchedProj) {
           matchedProj = allProjects.find(p =>
-            p.clientAccessKey && p.clientAccessKey.toLowerCase().includes(keyLower)
+            p.clientAccessKey && p.clientAccessKey.toLowerCase().includes(safeKey)
+          ) || null;
+        }
+
+        // Also check if safeKey matches a client's company or name
+        if (!matchedProj) {
+          const matchedCli = allClients.find(c =>
+            (c.id && c.id.toLowerCase() === safeKey) ||
+            (c.company && c.company.trim().toLowerCase() === safeKey) ||
+            (c.name && c.name.trim().toLowerCase() === safeKey)
           );
+          if (matchedCli) {
+            matchedProj = allProjects.find(p => p.clientId === matchedCli.id) || null;
+          }
         }
       }
 
@@ -509,7 +529,14 @@ export const firestoreSync = {
       }
 
       const matchedClient = allClients.find(c => c.id === matchedProj!.clientId) || null;
-      const matchedPosts = allPosts.filter(p => p.projectId === matchedProj!.id);
+
+      // Match posts by projectId, or by clientId as a safe fallback
+      const matchedPosts = allPosts.filter(p => {
+        if (!p) return false;
+        if (matchedProj && p.projectId && p.projectId === matchedProj.id) return true;
+        if (matchedClient && p.clientId && p.clientId === matchedClient.id) return true;
+        return false;
+      });
 
       return {
         project: matchedProj,

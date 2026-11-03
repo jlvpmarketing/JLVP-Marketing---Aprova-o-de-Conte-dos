@@ -167,8 +167,7 @@ export const isTestOrBlacklistedPost = (post?: { id?: string; title?: string } |
   const title = (post.title || '').trim().toLowerCase();
   if (TEST_POST_BLACKLIST.has(id)) return true;
   if (/^post-[1-6]$/.test(id)) return true;
-  if (/^(post-179354|post-179362|post-179337)/.test(id)) return true;
-  if (title.includes('qa ') || title.includes('teste') || title.includes('explore-test') || title.includes('future scheduled')) return true;
+  if (title.startsWith('qa ') || title.includes('explore-test') || title.includes('future scheduled')) return true;
   return false;
 };
 
@@ -450,13 +449,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // 1. Initial direct hydration from Firestore via Firebase SDK
     firestoreSync.fetchAllPosts().then(remotePosts => {
       if (remotePosts && remotePosts.length > 0) {
-        const deletedPosts = getDeletedPostIds();
-        const deletedProjects = getDeletedProjectIds();
-        const clean = remotePosts.filter(p => 
-          !deletedPosts.has(p.id) && 
-          !deletedProjects.has(p.projectId) && 
-          !isTestOrBlacklistedPost(p)
-        );
+        console.log('Dados recebidos do banco (fetchAllPosts AppContext):', remotePosts);
+        const clean = remotePosts.filter(p => !isTestOrBlacklistedPost(p));
         if (clean.length > 0) {
           setPosts(clean);
         }
@@ -465,8 +459,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     firestoreSync.fetchAllProjects().then(remoteProjects => {
       if (remoteProjects && remoteProjects.length > 0) {
-        const deletedProjects = getDeletedProjectIds();
-        const clean = remoteProjects.filter(p => !deletedProjects.has(p.id));
+        const clean = remoteProjects.filter(p => Boolean(p && p.id));
         if (clean.length > 0) {
           setProjects(clean);
         }
@@ -475,8 +468,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     firestoreSync.fetchAllClients().then(remoteClients => {
       if (remoteClients && remoteClients.length > 0) {
-        const deletedClients = getDeletedClientIds();
-        const clean = remoteClients.filter(c => !deletedClients.has(c.id));
+        const clean = remoteClients.filter(c => Boolean(c && c.id));
         if (clean.length > 0) {
           setClients(clean);
         }
@@ -504,54 +496,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     const unsubProjects = firestoreSync.subscribeToProjects((remoteProjects) => {
-      if (remoteProjects) {
-        const deletedProjects = getDeletedProjectIds();
-        const cleanProjects = remoteProjects.filter(p => !deletedProjects.has(p.id));
-        setProjects(cleanProjects);
+      if (remoteProjects && remoteProjects.length > 0) {
+        setProjects(remoteProjects);
       }
     });
 
     const unsubPosts = firestoreSync.subscribeToPosts((remotePosts) => {
       if (remotePosts) {
-        const deletedPosts = getDeletedPostIds();
-        const deletedProjects = getDeletedProjectIds();
-        const cleanRemote = remotePosts.filter(p => 
-          !deletedPosts.has(p.id) && 
-          !deletedProjects.has(p.projectId) && 
-          !isTestOrBlacklistedPost(p)
-        );
-
-        setPosts(prev => {
-          const localMap = new Map(prev.map(p => [p.id, p]));
-          const remoteMap = new Map(cleanRemote.map(p => [p.id, p]));
-          const validPrev = prev.filter(p => !deletedPosts.has(p.id) && !deletedProjects.has(p.projectId));
-
-          // 1. Process all remote posts, but preserve local posts that were recently updated or have more media
-          const mergedRemote = cleanRemote.map(remotePost => {
-            const localPost = localMap.get(remotePost.id);
-            if (!localPost) return remotePost;
-
-            const localTime = new Date(localPost.updatedAt || localPost.createdAt || 0).getTime();
-            const remoteTime = new Date(remotePost.updatedAt || remotePost.createdAt || 0).getTime();
-
-            const localMediaCount = localPost.mediaUrls?.length || 0;
-            const remoteMediaCount = remotePost.mediaUrls?.length || 0;
-
-            if (localMediaCount > remoteMediaCount || localTime > remoteTime) {
-              return localPost;
-            }
-
-            return remotePost;
-          });
-
-          // 2. Preserve valid local-only posts
-          const localOnly = validPrev.filter(p => 
-            !remoteMap.has(p.id) && 
-            !isTestOrBlacklistedPost(p)
-          );
-
-          return [...mergedRemote, ...localOnly];
-        });
+        console.log('Dados recebidos do banco (subscribeToPosts AppContext):', remotePosts);
+        const cleanRemote = remotePosts.filter(p => !isTestOrBlacklistedPost(p));
+        setPosts(cleanRemote);
       }
     });
 

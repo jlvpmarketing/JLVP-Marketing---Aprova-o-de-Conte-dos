@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { PostContent, FolderProject } from '../types';
 import { NotionKanbanCard } from './NotionKanbanCard';
 import { PostDetailView } from './PostDetailView';
+import { normalizePostStatus } from '../utils/contentTypeHelper';
 import { CalendarView } from './CalendarView';
 import { ProjectFolderModal } from './ProjectFolderModal';
 import { ClientManagerModal } from './ClientManagerModal';
@@ -62,23 +63,32 @@ export const ClientDetailPage: React.FC = () => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [clientChatOpen, setClientChatOpen] = useState(false);
 
-  const client = selectedClient || clients[0];
-  const clientProjects = projects.filter(p => p.clientId === client?.id);
+  const client = selectedClient || (clients.length > 0 ? clients[0] : null);
+  const clientProjects = client ? projects.filter(p => p.clientId === client.id) : [];
 
   // Active project folder or all client posts
   const isViewingAll = selectedProjectId === 'all' || (!selectedProjectId && clientProjects.length === 0);
-  const activeProject = isViewingAll ? null : (clientProjects.find(p => p.id === selectedProjectId) || clientProjects[0]);
+  const activeProject = isViewingAll ? null : (clientProjects.find(p => p.id === selectedProjectId) || clientProjects[0] || null);
+
+  // Debug log requested by user to verify data arriving before render
+  console.log('Dados recebidos do banco:', posts);
 
   const clientPosts = posts.filter(p => {
-    if (p.clientId !== client?.id) return false;
+    if (!p) return false;
+    const matchesClient = client ? p.clientId === client.id : true;
+    const matchesClientProject = clientProjects.some(cp => cp.id === p.projectId);
+    
+    // Post belongs to this client or one of this client's projects
+    if (!matchesClient && !matchesClientProject) return false;
+
     if (isViewingAll || !activeProject) return true;
-    return p.projectId === activeProject.id;
+    return p.projectId === activeProject.id || (!p.projectId && matchesClient);
   });
 
-  // Kanban status groups (without month filter as requested)
-  const pendingPosts = clientPosts.filter(p => p.status === 'pending_approval');
-  const changesPosts = clientPosts.filter(p => p.status === 'changes_requested');
-  const approvedPosts = clientPosts.filter(p => p.status === 'approved');
+  // Kanban status groups with normalized status values
+  const pendingPosts = clientPosts.filter(p => normalizePostStatus(p.status) === 'pending_approval');
+  const changesPosts = clientPosts.filter(p => normalizePostStatus(p.status) === 'changes_requested');
+  const approvedPosts = clientPosts.filter(p => normalizePostStatus(p.status) === 'approved');
 
   const handleCopyLink = (projectKey: string) => {
     const link = `${window.location.origin}${window.location.pathname}?view=portal&project=${projectKey}`;
