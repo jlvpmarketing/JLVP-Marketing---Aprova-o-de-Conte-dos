@@ -173,11 +173,15 @@ export const mediaStorage = {
 
     // Check if server disk has this media file
     try {
-      const serverMediaUrl = `/api/media/${mediaId}.mp4`;
-      const checkRes = await fetch(serverMediaUrl, { method: 'HEAD' });
-      if (checkRes.ok) {
-        resolvedUrlCache.set(url, serverMediaUrl);
-        return serverMediaUrl;
+      const isVideo = url.startsWith('video_chunkref:');
+      const extensions = isVideo ? ['.mp4', '.mov', '.webm'] : ['.jpg', '.png', '.webp', '.mp4'];
+      for (const ext of extensions) {
+        const serverMediaUrl = `/api/media/${mediaId}${ext}`;
+        const checkRes = await fetch(serverMediaUrl, { method: 'HEAD' });
+        if (checkRes.ok) {
+          resolvedUrlCache.set(url, serverMediaUrl);
+          return serverMediaUrl;
+        }
       }
     } catch {}
 

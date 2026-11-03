@@ -157,7 +157,20 @@ export const TEST_POST_BLACKLIST = new Set([
   'post-1793545935875-653xur',
   'post-1793543932507-xyxu93',
   'post-1793373676264-79aj5d',
+  'post-1793548064459-7p57pd',
+  'post-1793621267079-uo52xc',
 ]);
+
+export const isTestOrBlacklistedPost = (post?: { id?: string; title?: string } | null): boolean => {
+  if (!post) return true;
+  const id = (post.id || '').trim();
+  const title = (post.title || '').trim().toLowerCase();
+  if (TEST_POST_BLACKLIST.has(id)) return true;
+  if (/^post-[1-6]$/.test(id)) return true;
+  if (/^(post-179354|post-179362|post-179337)/.test(id)) return true;
+  if (title.includes('qa ') || title.includes('teste') || title.includes('explore-test') || title.includes('future scheduled')) return true;
+  return false;
+};
 
 export const getDeletedPostIds = (): Set<string> => {
   try {
@@ -434,102 +447,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setPortalMode(modeParam === 'agency' ? 'agency' : 'client');
     }
 
-    // 1. Initial immediate sync with server storage (/api/sync)
-    serverSync.fetchDatabase().then(serverDb => {
-      if (serverDb) {
-        if (serverDb.clients && serverDb.clients.length > 0) {
-          setClients(serverDb.clients);
-          try { localStorage.setItem(STORAGE_KEYS.CLIENTS, JSON.stringify(serverDb.clients)); } catch {}
-        }
-        if (serverDb.projects && serverDb.projects.length > 0) {
-          setProjects(serverDb.projects);
-          try { localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(serverDb.projects)); } catch {}
-        }
-        if (serverDb.users && serverDb.users.length > 0) setUsers(serverDb.users);
-        if (serverDb.auditLogs && serverDb.auditLogs.length > 0) {
-          setAuditLogs(serverDb.auditLogs);
-          try { localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(serverDb.auditLogs)); } catch {}
-        }
-        if (serverDb.posts && serverDb.posts.length > 0) {
-          const cleanServerPosts = serverDb.posts.filter(p => !TEST_POST_BLACKLIST.has(p.id));
-          setPosts(prev => {
-            const serverMap = new Map(cleanServerPosts.map(p => [p.id, p]));
-            const localMap = new Map(prev.map(p => [p.id, p]));
-
-            const merged = cleanServerPosts.map(srvPost => {
-              const loc = localMap.get(srvPost.id);
-              if (!loc) return srvPost;
-              const locTime = new Date(loc.updatedAt || loc.createdAt || 0).getTime();
-              const srvTime = new Date(srvPost.updatedAt || srvPost.createdAt || 0).getTime();
-              const locMedia = loc.mediaUrls?.length || 0;
-              const srvMedia = srvPost.mediaUrls?.length || 0;
-              if (locMedia > srvMedia || locTime > srvTime) return loc;
-              return srvPost;
-            });
-
-            const pending = prev.filter(p => !serverMap.has(p.id) && !TEST_POST_BLACKLIST.has(p.id));
-            return [...merged, ...pending];
-          });
+    // 1. Initial direct hydration from Firestore via Firebase SDK
+    firestoreSync.fetchAllPosts().then(remotePosts => {
+      if (remotePosts && remotePosts.length > 0) {
+        const deletedPosts = getDeletedPostIds();
+        const deletedProjects = getDeletedProjectIds();
+        const clean = remotePosts.filter(p => 
+          !deletedPosts.has(p.id) && 
+          !deletedProjects.has(p.projectId) && 
+          !isTestOrBlacklistedPost(p)
+        );
+        if (clean.length > 0) {
+          setPosts(clean);
         }
       }
     });
 
-    // 2. Periodic sync timer with server (/api/posts) every 3 seconds
-    const syncInterval = setInterval(async () => {
-      try {
-        const srvPosts = await serverSync.fetchPosts();
-        if (srvPosts && srvPosts.length > 0) {
-          const deletedPosts = getDeletedPostIds();
-          const deletedProjects = getDeletedProjectIds();
-          const clean = srvPosts.filter(p => 
-            !deletedPosts.has(p.id) && 
-            !deletedProjects.has(p.projectId) && 
-            !TEST_POST_BLACKLIST.has(p.id)
-          );
-
-          setPosts(prev => {
-            const localMap = new Map(prev.map(p => [p.id, p]));
-            const cleanMap = new Map(clean.map(p => [p.id, p]));
-            let changed = false;
-
-            // Remove any locally deleted posts
-            const validPrev = prev.filter(p => !deletedPosts.has(p.id) && !deletedProjects.has(p.projectId));
-            if (validPrev.length !== prev.length) changed = true;
-
-            const updatedList = clean.map(srvPost => {
-              const loc = localMap.get(srvPost.id);
-              if (!loc) {
-                changed = true;
-                return srvPost;
-              }
-              const locTime = new Date(loc.updatedAt || loc.createdAt || 0).getTime();
-              const srvTime = new Date(srvPost.updatedAt || srvPost.createdAt || 0).getTime();
-              const locMedia = loc.mediaUrls?.length || 0;
-              const srvMedia = srvPost.mediaUrls?.length || 0;
-
-              // If server has more media or newer update, take server!
-              if (srvMedia > locMedia || srvTime > locTime) {
-                changed = true;
-                return srvPost;
-              }
-              // If local has more media and is newer, push to server
-              if (locMedia > srvMedia && locTime > srvTime) {
-                serverSync.savePost(loc);
-              }
-              return loc;
-            });
-
-            // Keep any local posts that were not yet fetched from server (but NOT deleted ones!)
-            const localOnly = validPrev.filter(p => !cleanMap.has(p.id));
-
-            if (!changed && updatedList.length + localOnly.length === prev.length) {
-              return prev;
-            }
-            return [...updatedList, ...localOnly];
-          });
+    firestoreSync.fetchAllProjects().then(remoteProjects => {
+      if (remoteProjects && remoteProjects.length > 0) {
+        const deletedProjects = getDeletedProjectIds();
+        const clean = remoteProjects.filter(p => !deletedProjects.has(p.id));
+        if (clean.length > 0) {
+          setProjects(clean);
         }
-      } catch {}
-    }, 3000);
+      }
+    });
+
+    firestoreSync.fetchAllClients().then(remoteClients => {
+      if (remoteClients && remoteClients.length > 0) {
+        const deletedClients = getDeletedClientIds();
+        const clean = remoteClients.filter(c => !deletedClients.has(c.id));
+        if (clean.length > 0) {
+          setClients(clean);
+        }
+      }
+    });
 
     // 3. Seed Firestore if empty and establish real-time sync
     firestoreSync.seedInitialIfEmpty(
@@ -566,7 +518,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const cleanRemote = remotePosts.filter(p => 
           !deletedPosts.has(p.id) && 
           !deletedProjects.has(p.projectId) && 
-          !TEST_POST_BLACKLIST.has(p.id)
+          !isTestOrBlacklistedPost(p)
         );
 
         setPosts(prev => {
@@ -595,7 +547,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           // 2. Preserve valid local-only posts
           const localOnly = validPrev.filter(p => 
             !remoteMap.has(p.id) && 
-            !TEST_POST_BLACKLIST.has(p.id)
+            !isTestOrBlacklistedPost(p)
           );
 
           return [...mergedRemote, ...localOnly];
@@ -616,7 +568,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     return () => {
-      clearInterval(syncInterval);
       unsubClients();
       unsubProjects();
       unsubPosts();
@@ -660,12 +611,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     try {
       // Sanitize base64 from local storage payload to guarantee zero QuotaExceededError
-      const safePosts = posts.filter(p => !TEST_POST_BLACKLIST.has(p.id)).map(p => {
-        const hasBase64 = p.mediaUrls?.some(u => u && u.startsWith('data:'));
-        if (hasBase64) {
+      const safePosts = posts.filter(p => !isTestOrBlacklistedPost(p)).map(p => {
+        const hasLargeBase64 = p.mediaUrls?.some(u => u && u.startsWith('data:') && u.length > 50000);
+        if (hasLargeBase64) {
           return {
             ...p,
-            mediaUrls: p.mediaUrls?.map(u => (u && u.startsWith('data:')) ? '/api/media/fallback_sample.mp4' : u)
+            mediaUrls: p.mediaUrls?.map((u, idx) => {
+              if (u && u.startsWith('data:image/')) {
+                return idx === 0 ? '/api/media/sample_slide1.jpg' : '/api/media/sample_slide2.png';
+              }
+              if (u && u.startsWith('data:video/')) {
+                return '/api/media/sample_reel.mp4';
+              }
+              return u;
+            })
           };
         }
         return p;

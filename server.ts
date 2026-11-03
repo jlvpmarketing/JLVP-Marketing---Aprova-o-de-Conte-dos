@@ -160,23 +160,33 @@ async function startServer() {
       }
 
       let buffer: Buffer;
-      let extension = 'mp4';
+      let detectedMime = (mimeType || '').toLowerCase();
 
       if (data.startsWith('data:')) {
-        const matches = data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        const matches = data.match(/^data:([A-Za-z0-9-+\/.]+);base64,(.+)$/);
         if (matches && matches.length === 3) {
-          const mime = matches[1];
+          detectedMime = matches[1].toLowerCase();
           buffer = Buffer.from(matches[2], 'base64');
-          if (mime.includes('jpeg') || mime.includes('jpg')) extension = 'jpg';
-          else if (mime.includes('png')) extension = 'png';
-          else if (mime.includes('webp')) extension = 'webp';
-          else if (mime.includes('quicktime') || mime.includes('mov')) extension = 'mov';
-          else extension = 'mp4';
         } else {
           return res.status(400).json({ error: 'Formato de base64 inválido' });
         }
       } else {
         buffer = Buffer.from(data, 'base64');
+      }
+
+      let extension = 'jpg';
+      if (detectedMime.includes('jpeg') || detectedMime.includes('jpg')) extension = 'jpg';
+      else if (detectedMime.includes('png')) extension = 'png';
+      else if (detectedMime.includes('webp')) extension = 'webp';
+      else if (detectedMime.includes('mp4')) extension = 'mp4';
+      else if (detectedMime.includes('quicktime') || detectedMime.includes('mov')) extension = 'mov';
+      else if (detectedMime.includes('webm')) extension = 'webm';
+      else if (name && /\.(png|jpg|jpeg|webp|mp4|mov|webm)$/i.test(name)) {
+        extension = name.split('.').pop()!.toLowerCase();
+      } else if (detectedMime.startsWith('video/')) {
+        extension = 'mp4';
+      } else {
+        extension = 'jpg';
       }
 
       const mediaId = `media_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;

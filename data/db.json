@@ -141,49 +141,75 @@
   ],
   "posts": [
     {
-      "id": "post-1793299213372",
+      "id": "post-1793300588999",
+      "title": "Capacitação",
+      "clientId": "cli-1793289562170",
+      "projectId": "proj-1793298881846",
+      "contentType": "carousel",
+      "mediaType": "carousel",
+      "status": "pending_approval",
+      "scheduledDate": "2026-11-02T17:00",
+      "caption": "Capacitação contínua da equipe pedagógica do CCPII. Nosso compromisso é com a excelência no aprendizado e no desenvolvimento dos nossos alunos.",
       "mediaUrls": [
-        "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing"
+        "/api/media/ccp2_capacitacao_1.jpg",
+        "/api/media/ccp2_capacitacao_2.jpg",
+        "/api/media/ccp2_capacitacao_3.jpg",
+        "/api/media/ccp2_capacitacao_4.png",
+        "/api/media/ccp2_capacitacao_5.jpg",
+        "/api/media/ccp2_capacitacao_6.jpg"
       ],
-      "caption": "Já pensou, o seu filho estudando na maior rede de ensino da Zona Oeste do Rio?\n\nSão mais de 29 unidades espalhadas por toda a região para estar sempre perto de você.\n\nAqui, nós acompanhamos cada etapa da jornada: desde os primeiros passos na Educação Infantil até a solidez do Ensino Médio.\n\nTudo isso com o respaldo do SAS Educação e a fluência de alto desempenho do PES English.\n\nPorque a gente sabe que o futuro não se espera, se constrói com estrutura, excelência e muito afeto.\n\nAcesse o link da bio e agende sua visita a uma de nossas unidades.",
-      "createdByUserName": "Paloma Garcia",
+      "platforms": [
+        "instagram_feed"
+      ],
+      "comments": [],
+      "createdAt": "2026-10-30T10:00:00.000Z",
+      "updatedAt": "2026-11-03T11:15:57.448Z"
+    },
+    {
+      "id": "post-1793299213372",
+      "title": "Já pensou, o seu filho estudando na maior rede de ensino da zona oeste do Rio?",
       "clientId": "cli-1793289562170",
       "projectId": "proj-1793298881846",
       "contentType": "reel",
-      "createdAt": "2026-10-29T18:40:13.372Z",
-      "driveVideoUrl": "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing",
       "mediaType": "drive_video",
-      "title": "Já pensou, o seu filho estudando na maior rede de ensino da zona oeste do Rio?",
       "status": "pending_approval",
-      "scheduledDate": "2026-11-05T14:00",
-      "createdByUserId": "user-owner",
-      "platforms": [
-        "reels",
-        "instagram_feed"
+      "scheduledDate": "2026-11-04T17:00",
+      "caption": "Já pensou o seu filho estudando na maior rede de ensino da zona oeste do Rio? Venha conhecer o CCPII e surpreenda-se com nossa infraestrutura e corpo docente!",
+      "driveVideoUrl": "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing",
+      "mediaUrls": [
+        "https://drive.google.com/file/d/1mO-BW2q22ep71QzAMpm57G1asirwdldI/view?usp=sharing"
       ],
-      "comments": []
+      "platforms": [
+        "instagram_feed",
+        "reels"
+      ],
+      "comments": [],
+      "createdAt": "2026-10-29T18:40:13.372Z",
+      "updatedAt": "2026-11-03T11:15:57.448Z"
     },
     {
-      "createdByUserName": "Paloma Garcia",
-      "mediaUrls": [
-        "/api/media/media_post-1793300588570_0.jpg",
-        "/api/media/media_post-1793300588570_1.jpg"
-      ],
       "id": "post-1793300588570",
       "title": "Porque o CCPII é a melhor escolha para o seu filho",
       "clientId": "cli-1793289562170",
-      "createdByUserId": "user-owner",
-      "createdAt": "2026-10-29T19:03:08.570Z",
       "projectId": "proj-1793298881846",
       "contentType": "carousel",
-      "comments": [],
       "mediaType": "carousel",
-      "caption": "Você precisa saber disso! 👀\n\nEscolher a escola ideal exige calma, critério e, principalmente, olhar para o que está por trás da fachada. \n\nSe você quer entender o que realmente faz da nossa Rede uma referência, precisa conhecer os números e os pilares que sustentam o nosso trabalho.\n\n➡️ São mais de 40 anos de tradição, coroados como a maior rede de ensino da Zona Oeste com mais de 29 unidades. \n\n➡️ Acompanhamos o seu filho do início ao fim, dos nossos carinhosos Pedrinhos na Educação Infantil até a conclusão do Ensino Médio, blindando o aprendizado com o melhor do mercado: o SAS Educação e o PES English.\n\nAqui, o futuro não é uma promessa distante, é o que construímos juntos todos os dias. 💪🏻\n\nQuer ver de perto o padrão da maior rede da região? Clique no link da nossa bio e agende a sua visita a uma de nossas unidades!",
+      "status": "pending_approval",
+      "scheduledDate": "2026-11-06T17:00",
+      "caption": "Porque o CCPII é a melhor escolha para o seu filho: tradição, tecnologia, segurança e foco no futuro. Arraste para o lado e conheça nossos diferenciais!",
+      "mediaUrls": [
+        "/api/media/ccp2_escolha_1.jpg",
+        "/api/media/ccp2_escolha_2.jpg",
+        "/api/media/ccp2_escolha_3.jpg",
+        "/api/media/ccp2_escolha_4.png",
+        "/api/media/ccp2_escolha_5.jpg"
+      ],
       "platforms": [
         "instagram_feed"
       ],
-      "scheduledDate": "2026-10-30T17:00",
-      "status": "pending_approval"
+      "comments": [],
+      "createdAt": "2026-10-29T19:03:08.570Z",
+      "updatedAt": "2026-11-03T11:15:57.448Z"
     },
     {
       "id": "post-cli-1793289643785-pending",

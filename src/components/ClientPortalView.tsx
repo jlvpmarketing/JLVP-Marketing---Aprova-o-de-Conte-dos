@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useApp, getDeletedPostIds, getDeletedProjectIds, getDeletedClientIds, TEST_POST_BLACKLIST } from '../context/AppContext';
+import { useApp, getDeletedPostIds, getDeletedProjectIds, getDeletedClientIds, TEST_POST_BLACKLIST, isTestOrBlacklistedPost } from '../context/AppContext';
+import { firestoreSync } from '../services/firestoreSync';
 import { PostContent, FolderProject, Client } from '../types';
 import { PostApprovalCard } from './PostApprovalCard';
 import { PostDetailView } from './PostDetailView';
@@ -51,7 +52,7 @@ export const ClientPortalView: React.FC = () => {
 
   const matchedClient = matchedProject ? clients.find(c => c.id === matchedProject.clientId) : null;
 
-  // Local fallback state loaded directly from server /api/sync
+  // Direct portal data loader using Firebase SDK exclusively
   const [serverData, setServerData] = useState<{
     project: FolderProject | null;
     client: Client | null;
@@ -59,57 +60,27 @@ export const ClientPortalView: React.FC = () => {
   } | null>(null);
   const [syncFailed, setSyncFailed] = useState(false);
 
-  const fetchDirectServerData = () => {
-    fetch('/api/sync')
-      .then(res => res.json())
-      .then(db => {
-        if (db && db.projects && db.projects.length > 0) {
-          let srvProj = null;
-
-          if (keyLower) {
-            srvProj = db.projects.find((p: any) => 
-              (p.clientAccessKey && p.clientAccessKey.trim().toLowerCase() === keyLower) ||
-              (p.id && p.id.trim().toLowerCase() === keyLower) ||
-              (p.name && p.name.trim().toLowerCase() === keyLower)
-            );
-            if (!srvProj) {
-              srvProj = db.projects.find((p: any) => 
-                p.clientAccessKey && p.clientAccessKey.toLowerCase().includes(keyLower)
-              );
-            }
-          }
-
-          if (!srvProj) {
-            srvProj = db.projects[0];
-          }
-
-          if (srvProj) {
-            const srvCli = (db.clients || []).find((c: any) => c.id === srvProj.clientId) || {
-              id: srvProj.clientId || 'cli-fallback',
-              name: 'Cliente',
-              company: srvProj.name || 'Cliente',
-              brandColor: '#4F46E5',
-              whatsappGroupLink: '',
-            };
-            const srvPosts = (db.posts || []).filter((post: any) => post.projectId === srvProj.id && !TEST_POST_BLACKLIST.has(post.id));
-
-            setServerData({
-              project: srvProj,
-              client: srvCli,
-              posts: srvPosts
-            });
-            setSyncFailed(false);
-          }
+  const fetchDirectFirestoreData = () => {
+    firestoreSync.fetchDirectPortalData(keyLower)
+      .then(data => {
+        if (data && data.project) {
+          const srvPosts = (data.posts || []).filter(post => !isTestOrBlacklistedPost(post));
+          setServerData({
+            project: data.project,
+            client: data.client,
+            posts: srvPosts
+          });
+          setSyncFailed(false);
         }
       })
       .catch((err) => {
-        console.warn('Erro ao carregar dados do servidor:', err);
+        console.warn('Erro ao carregar dados do Firestore:', err);
         setSyncFailed(true);
       });
   };
 
   useEffect(() => {
-    fetchDirectServerData();
+    fetchDirectFirestoreData();
   }, [effectiveProjectKey]);
 
   // Resolve current project with cascading fallback
@@ -157,7 +128,7 @@ export const ClientPortalView: React.FC = () => {
 
   // Raw posts from context or server, sanitized to ensure test posts never appear
   const rawPostsList = ((posts && posts.length > 0) ? posts : (serverData?.posts || []))
-    .filter(p => !TEST_POST_BLACKLIST.has(p.id));
+    .filter(p => !isTestOrBlacklistedPost(p));
 
   // Filter posts for this client and project/folder
   const filteredPosts = rawPostsList.filter(p => {
@@ -376,7 +347,7 @@ export const ClientPortalView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  fetchDirectServerData();
+                  fetchDirectFirestoreData();
                   setTimeout(() => {
                     if (!currentProject || !client) {
                       window.location.reload();

@@ -422,5 +422,87 @@ export const firestoreSync = {
     } catch {
       return () => {};
     }
+  },
+
+  // Direct fetch methods directly via Firebase SDK (No HTTP fetch API calls)
+  async fetchAllPosts(): Promise<PostContent[]> {
+    try {
+      const snap = await getDocs(collection(db, 'posts'));
+      return snap.docs.map(d => d.data() as PostContent);
+    } catch (err) {
+      console.warn('Erro ao consultar posts no Firestore:', err);
+      return [];
+    }
+  },
+
+  async fetchAllProjects(): Promise<FolderProject[]> {
+    try {
+      const snap = await getDocs(collection(db, 'projects'));
+      return snap.docs.map(d => d.data() as FolderProject);
+    } catch (err) {
+      console.warn('Erro ao consultar projetos no Firestore:', err);
+      return [];
+    }
+  },
+
+  async fetchAllClients(): Promise<Client[]> {
+    try {
+      const snap = await getDocs(collection(db, 'clients'));
+      return snap.docs.map(d => d.data() as Client);
+    } catch (err) {
+      console.warn('Erro ao consultar clientes no Firestore:', err);
+      return [];
+    }
+  },
+
+  // Direct portal data loader using Firebase SDK exclusively
+  async fetchDirectPortalData(keyLower: string): Promise<{
+    project: FolderProject | null;
+    client: Client | null;
+    posts: PostContent[];
+  } | null> {
+    try {
+      const [projectsSnap, clientsSnap, postsSnap] = await Promise.all([
+        getDocs(collection(db, 'projects')),
+        getDocs(collection(db, 'clients')),
+        getDocs(collection(db, 'posts'))
+      ]);
+
+      const allProjects = projectsSnap.docs.map(d => d.data() as FolderProject);
+      const allClients = clientsSnap.docs.map(d => d.data() as Client);
+      const allPosts = postsSnap.docs.map(d => d.data() as PostContent);
+
+      if (allProjects.length === 0) return null;
+
+      let matchedProj = null;
+      if (keyLower) {
+        matchedProj = allProjects.find(p =>
+          (p.clientAccessKey && p.clientAccessKey.trim().toLowerCase() === keyLower) ||
+          (p.id && p.id.trim().toLowerCase() === keyLower) ||
+          (p.name && p.name.trim().toLowerCase() === keyLower)
+        );
+        if (!matchedProj) {
+          matchedProj = allProjects.find(p =>
+            p.clientAccessKey && p.clientAccessKey.toLowerCase().includes(keyLower)
+          );
+        }
+      }
+
+      if (!matchedProj) {
+        matchedProj = allProjects[0];
+      }
+
+      const matchedClient = allClients.find(c => c.id === matchedProj!.clientId) || null;
+      const matchedPosts = allPosts.filter(p => p.projectId === matchedProj!.id);
+
+      return {
+        project: matchedProj,
+        client: matchedClient,
+        posts: matchedPosts
+      };
+    } catch (err) {
+      console.warn('Erro ao consultar portal no Firestore:', err);
+      return null;
+    }
   }
 };

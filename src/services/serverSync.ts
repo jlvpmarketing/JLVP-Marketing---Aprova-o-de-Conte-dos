@@ -7,6 +7,20 @@ import { Client, FolderProject, PostContent, AgencyUser, NotificationItem, Audit
  * Completely immune to third-party cloud quota limits.
  */
 
+async function safeJsonParse<T>(res: Response): Promise<T | null> {
+  if (!res.ok) return null;
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  if (!contentType.includes('application/json')) {
+    // If response is HTML (e.g. SPA fallback index.html), return null quietly
+    return null;
+  }
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export const serverSync = {
   /**
    * Upload video or high-res image to the server disk (/data/media/)
@@ -24,15 +38,12 @@ export const serverSync = {
       const res = await fetch('/api/media', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data, mimeType, name })
+        body: JSON.stringify({ data, mimeType, name }),
+        signal: AbortSignal.timeout(15000)
       });
 
-      if (!res.ok) {
-        throw new Error(`Servidor respondeu com status ${res.status}`);
-      }
-
-      const json = await res.json();
-      if (json.success && json.url) {
+      const json = await safeJsonParse<{ success: boolean; url: string }>(res);
+      if (json && json.success && json.url) {
         console.log('🎬 Mídia enviada para o servidor:', json.url);
         return json.url;
       }
@@ -57,10 +68,8 @@ export const serverSync = {
   } | null> {
     try {
       const res = await fetch('/api/sync');
-      if (!res.ok) return null;
-      return await res.json();
-    } catch (err) {
-      console.warn('Erro ao sincronizar banco do servidor:', err);
+      return await safeJsonParse<any>(res);
+    } catch {
       return null;
     }
   },
@@ -71,10 +80,9 @@ export const serverSync = {
   async fetchPosts(): Promise<PostContent[]> {
     try {
       const res = await fetch('/api/posts');
-      if (!res.ok) return [];
-      return await res.json();
-    } catch (err) {
-      console.warn('Erro ao buscar posts do servidor:', err);
+      const data = await safeJsonParse<PostContent[]>(res);
+      return Array.isArray(data) ? data : [];
+    } catch {
       return [];
     }
   },
@@ -89,11 +97,9 @@ export const serverSync = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(post)
       });
-      if (!res.ok) return { success: false };
-      const json = await res.json();
-      return json;
-    } catch (err) {
-      console.warn('Erro ao salvar post no servidor:', err);
+      const json = await safeJsonParse<{ success: boolean; post?: PostContent }>(res);
+      return json || { success: res.ok };
+    } catch {
       return { success: false };
     }
   },

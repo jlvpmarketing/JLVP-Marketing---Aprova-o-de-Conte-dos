@@ -77,23 +77,26 @@ export function getContentTypeInfo(post: PostContent) {
 
 export function isDriveVideoUrl(url?: string): boolean {
   if (!url) return false;
+  const clean = url.trim().toLowerCase();
   return (
-    url.startsWith('drive:') ||
-    url.startsWith('drive_video:') ||
-    url.includes('drive.google.com')
+    clean.startsWith('drive:') ||
+    clean.startsWith('drive_video:') ||
+    clean.includes('drive.google.com')
   );
 }
 
 export function isVideoUrl(url?: string): boolean {
   if (!url) return false;
-  const lower = url.toLowerCase();
-  return (
-    lower.startsWith('data:video/') ||
-    lower.startsWith('video_chunkref:') ||
-    lower.startsWith('blob:') ||
-    (lower.startsWith('/api/media/') && (lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.webm') || (!lower.endsWith('.jpg') && !lower.endsWith('.jpeg') && !lower.endsWith('.png') && !lower.endsWith('.webp')))) ||
-    isDriveVideoUrl(url) ||
-    /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(url)
-  );
+  const lower = url.trim().toLowerCase();
+  if (lower.startsWith('data:video/')) return true;
+  if (lower.startsWith('video_chunkref:')) return true;
+  if (isDriveVideoUrl(lower)) return true;
+  if (/\.(mp4|mov|webm|m4v|ogg|avi|mkv)(\?.*)?$/i.test(lower)) return true;
+  return false;
+}
+
+export function isImageUrl(url?: string): boolean {
+  if (!url) return false;
+  return !isVideoUrl(url);
 }
 
