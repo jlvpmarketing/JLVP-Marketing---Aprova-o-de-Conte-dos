@@ -81,6 +81,13 @@ export interface SupportDocument {
   uploadDate: string;
 }
 
+export interface MediaItem {
+  url: string;
+  type: 'image' | 'video';
+  name?: string;
+  driveFileId?: string;
+}
+
 export interface PostContent {
   id: string;
   projectId: string;
@@ -90,6 +97,8 @@ export interface PostContent {
   contentType?: ContentTypeFormat;
   mediaType: MediaType;
   mediaUrls: string[];
+  media?: MediaItem[];
+  imageUrl?: string;
   driveVideoUrl?: string;
   caption: string;
   scheduledDate: string; // ISO date-time

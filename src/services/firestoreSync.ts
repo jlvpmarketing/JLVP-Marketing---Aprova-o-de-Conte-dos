@@ -9,7 +9,8 @@ import {
   where
 } from 'firebase/firestore';
 import { db, testFirestoreConnection } from '../firebase';
-import { Client, FolderProject, PostContent, AgencyUser, AuditLogItem, AgencyConfig, NotificationItem, GeneralChatMessage } from '../types';
+import { Client, FolderProject, PostContent, AgencyUser, AuditLogItem, AgencyConfig, NotificationItem, GeneralChatMessage, MediaItem } from '../types';
+import { isDriveVideoUrl, isVideoUrl } from '../utils/contentTypeHelper';
 
 let isFirestoreConnected = false;
 
@@ -165,6 +166,21 @@ export const firestoreSync = {
           })
         );
         finalPost.mediaUrls = processedUrls.filter(u => Boolean(u));
+      }
+
+      // Ensure media array of {url, type} is always populated
+      if (finalPost.media && finalPost.media.length > 0) {
+        finalPost.media = finalPost.media.map((m: MediaItem) => ({
+          url: m.url,
+          type: m.type || (isDriveVideoUrl(m.url) || isVideoUrl(m.url) ? 'video' : 'image'),
+          ...(m.name ? { name: m.name } : {}),
+          ...(m.driveFileId ? { driveFileId: m.driveFileId } : {}),
+        }));
+      } else if (finalPost.mediaUrls && finalPost.mediaUrls.length > 0) {
+        finalPost.media = finalPost.mediaUrls.map((u: string) => ({
+          url: u,
+          type: (isDriveVideoUrl(u) || isVideoUrl(u) ? 'video' : 'image') as 'image' | 'video',
+        }));
       }
 
       const cleanData = sanitizeForFirestore(finalPost);

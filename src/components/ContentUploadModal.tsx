@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { MediaType, SocialPlatform, PostContent, ContentTypeFormat } from '../types';
+import { MediaType, SocialPlatform, PostContent, ContentTypeFormat, MediaItem } from '../types';
 import { extractDriveFileId, getDriveEmbedUrl, isValidDriveUrl } from '../utils/drivePlayer';
-import { getPostContentType, isVideoUrl, isDriveVideoUrl } from '../utils/contentTypeHelper';
+import { getPostContentType, isVideoUrl, isDriveVideoUrl, getSlideMediaInfo } from '../utils/contentTypeHelper';
 import { compressImage } from '../utils/imageCompressor';
 import { mediaStorage } from '../services/mediaStorage';
 import { serverSync } from '../services/serverSync';
@@ -83,6 +83,18 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     return 'image';
   });
   const [mediaUrls, setMediaUrls] = useState<string[]>(postToEdit ? postToEdit.mediaUrls : []);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(() => {
+    if (postToEdit?.media && postToEdit.media.length > 0) {
+      return postToEdit.media;
+    }
+    if (postToEdit?.mediaUrls && postToEdit.mediaUrls.length > 0) {
+      return postToEdit.mediaUrls.map(u => ({
+        url: u,
+        type: isVideoUrl(u) || isDriveVideoUrl(u) ? 'video' : 'image',
+      }));
+    }
+    return [];
+  });
   const [driveVideoUrl, setDriveVideoUrl] = useState(postToEdit?.driveVideoUrl || '');
   const [caption, setCaption] = useState(postToEdit ? postToEdit.caption : '');
   const [scheduledDate, setScheduledDate] = useState(() => {
@@ -118,12 +130,19 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       setCaption(postToEdit.caption || '');
       setScheduledDate(postToEdit.scheduledDate || new Date().toISOString().slice(0, 16));
 
-      // Resolve any chunked media URLs so preview works
-      if (postToEdit.mediaUrls && postToEdit.mediaUrls.length > 0) {
-        Promise.all(postToEdit.mediaUrls.map(u => mediaStorage.resolveMedia(u)))
-          .then(resolved => setMediaUrls(resolved))
-          .catch(() => setMediaUrls([...postToEdit.mediaUrls]));
+      // Populate structured media items and mediaUrls
+      if (postToEdit.media && postToEdit.media.length > 0) {
+        setMediaItems([...postToEdit.media]);
+        setMediaUrls(postToEdit.media.map(m => m.url));
+      } else if (postToEdit.mediaUrls && postToEdit.mediaUrls.length > 0) {
+        const items = postToEdit.mediaUrls.map(u => ({
+          url: u,
+          type: (isVideoUrl(u) || isDriveVideoUrl(u) ? 'video' : 'image') as 'image' | 'video',
+        }));
+        setMediaItems(items);
+        setMediaUrls([...postToEdit.mediaUrls]);
       } else {
+        setMediaItems([]);
         setMediaUrls([]);
       }
     } else {
@@ -137,6 +156,7 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       setContentType('static');
       setTitle('');
       setMediaType('image');
+      setMediaItems([]);
       setMediaUrls([]);
       setDriveVideoUrl('');
       setCaption('');
@@ -163,6 +183,7 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
+    const newItems: MediaItem[] = [];
     const newUrls: string[] = [];
 
     for (const file of Array.from(files)) {
@@ -170,16 +191,15 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
         if (file.type.startsWith('image/')) {
           // Compress image and stream directly to server disk
           const compressed = await compressImage(file, 900, 1200, 0.70);
+          let finalUrl = compressed;
           try {
             const serverUrl = await serverSync.uploadMedia(compressed, 'image/jpeg', file.name);
             if (serverUrl && serverUrl.startsWith('/api/media/')) {
-              newUrls.push(serverUrl);
-            } else {
-              newUrls.push(compressed);
+              finalUrl = serverUrl;
             }
-          } catch {
-            newUrls.push(compressed);
-          }
+          } catch {}
+          newUrls.push(finalUrl);
+          newItems.push({ url: finalUrl, type: 'image', name: file.name });
         } else if (file.type.startsWith('video/')) {
           // Allow video files directly up to 80MB
           if (file.size > 80 * 1024 * 1024) {
@@ -193,17 +213,15 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
             reader.readAsDataURL(file);
           });
           
-          // Stream directly to server disk
+          let finalUrl = base64;
           try {
             const serverUrl = await serverSync.uploadMedia(base64, file.type, file.name);
             if (serverUrl && serverUrl.startsWith('/api/media/')) {
-              newUrls.push(serverUrl);
-            } else {
-              newUrls.push(base64);
+              finalUrl = serverUrl;
             }
-          } catch {
-            newUrls.push(base64);
-          }
+          } catch {}
+          newUrls.push(finalUrl);
+          newItems.push({ url: finalUrl, type: 'video', name: file.name });
         } else {
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
@@ -211,16 +229,16 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
             reader.onerror = reject;
             reader.readAsDataURL(file);
           });
+          let finalUrl = base64;
           try {
             const serverUrl = await serverSync.uploadMedia(base64, file.type || 'application/octet-stream', file.name);
             if (serverUrl && serverUrl.startsWith('/api/media/')) {
-              newUrls.push(serverUrl);
-            } else {
-              newUrls.push(base64);
+              finalUrl = serverUrl;
             }
-          } catch {
-            newUrls.push(base64);
-          }
+          } catch {}
+          const isVid = (file.type && file.type.startsWith('video/')) || isVideoUrl(file.name);
+          newUrls.push(finalUrl);
+          newItems.push({ url: finalUrl, type: isVid ? 'video' : 'image', name: file.name });
         }
       } catch (err) {
         console.warn('Erro ao processar mídia:', err);
@@ -230,21 +248,22 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     setIsUploading(false);
 
     if (newUrls.length > 0) {
-      const hasVideo = newUrls.some(u => isVideoUrl(u));
       if (contentType === 'carousel') {
         setMediaType('carousel');
       } else if (contentType === 'story') {
-        setMediaType(hasVideo ? 'video' : 'image');
+        setMediaType(newItems.some(i => i.type === 'video') ? 'video' : 'image');
       } else if (contentType === 'static') {
-        setMediaType(hasVideo ? 'video' : 'image');
+        setMediaType(newItems.some(i => i.type === 'video') ? 'video' : 'image');
       } else if (contentType === 'reel') {
         setMediaType('video');
       }
 
       if (contentType === 'carousel' || contentType === 'story') {
         setMediaUrls(prev => [...prev, ...newUrls]);
+        setMediaItems(prev => [...prev, ...newItems]);
       } else {
         setMediaUrls([newUrls[0]]);
+        setMediaItems([newItems[0]]);
       }
       addToast('success', 'Mídia Anexada', `${newUrls.length} arquivo(s) adicionado(s) com sucesso.`);
     }
@@ -257,6 +276,7 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
 
   const handleRemoveMedia = (index: number) => {
     setMediaUrls(prev => prev.filter((_, i) => i !== index));
+    setMediaItems(prev => prev.filter((_, i) => i !== index));
     if (activeSlide >= mediaUrls.length - 1) {
       setActiveSlide(Math.max(0, mediaUrls.length - 2));
     }
@@ -283,6 +303,12 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       updated.splice(dropTargetIndex, 0, movedItem);
       return updated;
     });
+    setMediaItems(prev => {
+      const updated = [...prev];
+      const [movedItem] = updated.splice(draggedIndex, 1);
+      updated.splice(dropTargetIndex, 0, movedItem);
+      return updated;
+    });
     setDraggedIndex(null);
   };
 
@@ -291,6 +317,12 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     if (targetIdx < 0 || targetIdx >= mediaUrls.length) return;
 
     setMediaUrls(prev => {
+      const updated = [...prev];
+      const [movedItem] = updated.splice(fromIndex, 1);
+      updated.splice(targetIdx, 0, movedItem);
+      return updated;
+    });
+    setMediaItems(prev => {
       const updated = [...prev];
       const [movedItem] = updated.splice(fromIndex, 1);
       updated.splice(targetIdx, 0, movedItem);
@@ -322,6 +354,7 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       return;
     }
     setMediaUrls(prev => [...prev, link]);
+    setMediaItems(prev => [...prev, { url: link, type: 'video', driveFileId: fileId }]);
     setDriveSlideInput('');
     setShowDriveSlideForm(false);
     addToast('success', 'Slide de Vídeo Adicionado', 'Vídeo do Google Drive inserido com sucesso.');
@@ -364,41 +397,48 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     try {
       setIsSaving(true);
 
-      // Clean and sanitize all media URLs before saving
-      const finalMediaUrls = await Promise.all(
-        mediaUrls.map(async (url) => {
-          if (!url) return '';
-          // If legacy chunkref, attempt to resolve first
-          if (url.startsWith('video_chunkref:') || url.startsWith('chunkref:')) {
-            const resolved = await mediaStorage.resolveMedia(url);
-            if (resolved && resolved.startsWith('data:')) {
-              url = resolved;
-            } else if (resolved && (resolved.startsWith('http') || resolved.startsWith('/api/media/'))) {
-              return resolved;
-            }
-          }
+      // Build structured media items list
+      const finalMediaItems: MediaItem[] = [];
+      const finalMediaUrls: string[] = [];
 
-          // If already a Google Drive link or server URL, keep as is
-          if (url.startsWith('/api/media/') || url.startsWith('http://') || url.startsWith('https://')) {
-            return url;
-          }
-          // If it is any base64 data, store to server disk immediately to guarantee zero localStorage overflow
-          if (url.startsWith('data:')) {
-            const mime = url.startsWith('data:video') ? 'video/mp4' : 'image/jpeg';
-            try {
-              const serverUrl = await serverSync.uploadMedia(url, mime);
-              if (serverUrl && serverUrl.startsWith('/api/media/')) {
-                return serverUrl;
-              }
-            } catch (uErr) {
-              console.warn('Erro ao enviar mídia ao servidor:', uErr);
-            }
-          }
-          return url;
-        })
-      );
+      for (let i = 0; i < mediaUrls.length; i++) {
+        let url = mediaUrls[i];
+        if (!url) continue;
 
-      const filteredMediaUrls = finalMediaUrls.filter(u => Boolean(u));
+        // If legacy chunkref, attempt to resolve first
+        if (url.startsWith('video_chunkref:') || url.startsWith('chunkref:')) {
+          const resolved = await mediaStorage.resolveMedia(url);
+          if (resolved && resolved.startsWith('data:')) {
+            url = resolved;
+          } else if (resolved && (resolved.startsWith('http') || resolved.startsWith('/api/media/'))) {
+            url = resolved;
+          }
+        }
+
+        // Upload any data URL to server disk
+        if (url.startsWith('data:')) {
+          const itemType = mediaItems[i]?.type || (url.startsWith('data:video') ? 'video' : 'image');
+          const mime = itemType === 'video' ? 'video/mp4' : 'image/jpeg';
+          try {
+            const serverUrl = await serverSync.uploadMedia(url, mime, mediaItems[i]?.name);
+            if (serverUrl && serverUrl.startsWith('/api/media/')) {
+              url = serverUrl;
+            }
+          } catch (uErr) {
+            console.warn('Erro ao enviar mídia ao servidor:', uErr);
+          }
+        }
+
+        finalMediaUrls.push(url);
+        const isDrive = isDriveVideoUrl(url);
+        const itemType = mediaItems[i]?.type || (isDrive || isVideoUrl(url) ? 'video' : 'image');
+        finalMediaItems.push({
+          url,
+          type: itemType,
+          name: mediaItems[i]?.name,
+          driveFileId: isDrive ? extractDriveFileId(url) || undefined : undefined,
+        });
+      }
 
       let effectiveMediaType: MediaType = mediaType;
       if (contentType === 'carousel') {
@@ -406,9 +446,9 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
       } else if (contentType === 'reel') {
         effectiveMediaType = cleanDriveUrl ? 'drive_video' : 'video';
       } else if (contentType === 'story') {
-        effectiveMediaType = cleanDriveUrl ? 'drive_video' : (filteredMediaUrls.some(u => isVideoUrl(u)) ? 'video' : 'image');
+        effectiveMediaType = cleanDriveUrl ? 'drive_video' : (finalMediaItems.some(u => u.type === 'video') ? 'video' : 'image');
       } else {
-        effectiveMediaType = cleanDriveUrl ? 'drive_video' : (filteredMediaUrls.some(u => isVideoUrl(u)) ? 'video' : 'image');
+        effectiveMediaType = cleanDriveUrl ? 'drive_video' : (finalMediaItems.some(u => u.type === 'video') ? 'video' : 'image');
       }
 
       const payload: any = {
@@ -417,7 +457,8 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
         title: trimmedTitle,
         contentType,
         mediaType: effectiveMediaType,
-        mediaUrls: filteredMediaUrls,
+        mediaUrls: finalMediaUrls,
+        media: finalMediaItems,
         caption,
         scheduledDate: scheduledDate || new Date().toISOString().slice(0, 16),
         platforms: ['instagram_feed'],
@@ -958,27 +999,31 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                 ) : mediaUrls.length > 0 ? (
                   <div className="relative w-full h-full flex items-center justify-center">
                     {(() => {
-                      const currentMedia = mediaUrls[activeSlide] || mediaUrls[0];
-                      if (isDriveVideoUrl(currentMedia)) {
+                      const currentItem = mediaItems[activeSlide] || mediaItems[0] || (mediaUrls[activeSlide] ? { url: mediaUrls[activeSlide], type: isVideoUrl(mediaUrls[activeSlide]) || isDriveVideoUrl(mediaUrls[activeSlide]) ? 'video' : 'image' } : null);
+                      if (!currentItem || !currentItem.url) return null;
+                      const isDrive = isDriveVideoUrl(currentItem.url);
+                      if (currentItem.type === 'video') {
+                        if (isDrive) {
+                          return (
+                            <DriveVideoPlayer
+                              url={currentItem.url}
+                              title={`${title} - Slide ${activeSlide + 1}`}
+                              className="w-full h-full"
+                            />
+                          );
+                        }
                         return (
-                          <DriveVideoPlayer
-                            url={currentMedia}
-                            title={`${title} - Slide ${activeSlide + 1}`}
-                            className="w-full h-full"
+                          <video
+                            src={currentItem.url}
+                            controls
+                            playsInline
+                            className="w-full h-full object-cover"
                           />
                         );
                       }
-                      const isVideo = isVideoUrl(currentMedia);
-                      return isVideo ? (
-                        <video
-                          src={currentMedia}
-                          controls
-                          playsInline
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
+                      return (
                         <img
-                          src={currentMedia}
+                          src={currentItem.url}
                           alt="Prévia"
                           className="w-full h-full object-cover"
                         />

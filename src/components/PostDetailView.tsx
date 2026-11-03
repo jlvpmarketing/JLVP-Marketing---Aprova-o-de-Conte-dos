@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { PostContent, AgencyUser } from '../types';
 import { getDriveEmbedUrl, extractDriveFileId } from '../utils/drivePlayer';
 import { DriveVideoPlayer } from './DriveVideoPlayer';
-import { getContentTypeInfo, isVideoUrl, isDriveVideoUrl } from '../utils/contentTypeHelper';
+import { getContentTypeInfo, isVideoUrl, isDriveVideoUrl, getPostMediaList } from '../utils/contentTypeHelper';
 import { useResolvedMedia } from '../hooks/useResolvedMedia';
 import { 
   X, 
@@ -57,7 +57,11 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
   } = useApp();
 
   const currentPost = (post && posts.find(p => p.id === post.id)) || post;
-  const { resolvedUrls } = useResolvedMedia(currentPost?.mediaUrls || []);
+  const sourceUrls = (currentPost?.media && currentPost.media.length > 0)
+    ? currentPost.media.map(m => m.url)
+    : (currentPost?.mediaUrls || []);
+  const { resolvedUrls } = useResolvedMedia(sourceUrls);
+  const mediaList = currentPost ? getPostMediaList(currentPost, resolvedUrls) : [];
   const [activeSlide, setActiveSlide] = useState(initialSlide || 0);
   const [newComment, setNewComment] = useState('');
   const [approving, setApproving] = useState(false);
@@ -73,6 +77,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
 
   // Find effective video url if present anywhere in the post
   const effectiveDriveUrl = activePost.driveVideoUrl || 
+    (mediaList.find(m => m.isDrive)?.url) ||
     (resolvedUrls && resolvedUrls.find(u => isDriveVideoUrl(u))) ||
     (activePost.mediaUrls && activePost.mediaUrls.find(u => isDriveVideoUrl(u)));
 
@@ -220,32 +225,32 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
               <div
                 className={`relative w-full ${contentInfo.aspectClass} rounded-2xl overflow-hidden bg-slate-950 shadow-xl flex items-center justify-center border border-slate-800`}
               >
-                {resolvedUrls && resolvedUrls.length > 1 ? (
+                {mediaList.length > 1 ? (
                   /* Multi-slide carousel: works for images, videos, or mixed items with arrows and autoplay */
                   <div className="relative w-full h-full flex items-center justify-center bg-black">
                     {(() => {
-                      const currentMedia = resolvedUrls[activeSlide] || resolvedUrls[0];
-                      if (isDriveVideoUrl(currentMedia)) {
-                        return (
-                          <div className="w-full h-full relative" key={`detail_drive_${activeSlide}`}>
-                            <DriveVideoPlayer
-                              key={`drive_${activeSlide}_${extractDriveFileId(currentMedia)}`}
-                              url={currentMedia}
-                              title={`${post.title} - Lâmina ${activeSlide + 1}`}
-                              aspectClass={contentInfo.aspectClass}
-                              autoPlay={true}
-                              forceMode={playerMode}
-                              onModeChange={setPlayerMode}
-                            />
-                          </div>
-                        );
-                      }
-                      if (isVideoUrl(currentMedia)) {
+                      const currentMedia = mediaList[activeSlide] || mediaList[0];
+                      if (currentMedia.type === 'video') {
+                        if (currentMedia.isDrive) {
+                          return (
+                            <div className="w-full h-full relative" key={`detail_drive_${activeSlide}`}>
+                              <DriveVideoPlayer
+                                key={`drive_${activeSlide}_${currentMedia.driveFileId || currentMedia.url}`}
+                                url={currentMedia.url}
+                                title={`${post.title} - Lâmina ${activeSlide + 1}`}
+                                aspectClass={contentInfo.aspectClass}
+                                autoPlay={true}
+                                forceMode={playerMode}
+                                onModeChange={setPlayerMode}
+                              />
+                            </div>
+                          );
+                        }
                         return (
                           <div className="w-full h-full relative flex items-center justify-center bg-black" key={`detail_video_${activeSlide}`}>
                             <video
-                              key={`video_${activeSlide}_${currentMedia}`}
-                              src={currentMedia}
+                              key={`video_${activeSlide}_${currentMedia.url}`}
+                              src={currentMedia.url}
                               controls
                               playsInline
                               autoPlay
@@ -260,12 +265,25 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                         );
                       }
                       return (
-                        <img
-                          key={`img_${activeSlide}_${currentMedia}`}
-                          src={currentMedia}
-                          alt={`${post.title} - Lâmina ${activeSlide + 1}`}
-                          className="w-full h-full object-contain"
-                        />
+                        <div className="w-full h-full relative flex items-center justify-center bg-black" key={`detail_img_${activeSlide}`}>
+                          <img
+                            key={`img_${activeSlide}_${currentMedia.url}`}
+                            src={currentMedia.url}
+                            alt={`${post.title} - Lâmina ${activeSlide + 1}`}
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const fallback = target.parentElement?.querySelector('.detail-fallback') as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
+                          />
+                          <div className="detail-fallback hidden w-full h-full flex-col items-center justify-center bg-slate-900 text-slate-400 p-6">
+                            <ImageIcon className="w-12 h-12 mb-3 opacity-50 text-slate-400" />
+                            <span className="text-sm font-semibold text-slate-200">{post.title}</span>
+                            <span className="text-xs text-slate-400 mt-1">Lâmina {activeSlide + 1} de {mediaList.length}</span>
+                          </div>
+                        </div>
                       );
                     })()}
 
@@ -281,8 +299,8 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveSlide(prev => Math.min(resolvedUrls.length - 1, prev + 1))}
-                      disabled={activeSlide === resolvedUrls.length - 1}
+                      onClick={() => setActiveSlide(prev => Math.min(mediaList.length - 1, prev + 1))}
+                      disabled={activeSlide === mediaList.length - 1}
                       className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/75 text-white hover:bg-black disabled:opacity-20 transition-all z-30 shadow-lg cursor-pointer active:scale-95"
                       aria-label="Próximo slide"
                     >
@@ -290,7 +308,7 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                     </button>
 
                     <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-30 pointer-events-auto">
-                      {resolvedUrls.map((_, i) => (
+                      {mediaList.map((_, i: number) => (
                         <button
                           key={i}
                           type="button"
@@ -305,37 +323,27 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
 
                     <span className="absolute top-3 right-3 px-2.5 py-1 rounded-md text-xs font-mono bg-black/80 text-white backdrop-blur-xs flex items-center gap-1.5 z-30 shadow-sm border border-white/10">
                       <Layers className="w-3.5 h-3.5" />
-                      Lâmina {activeSlide + 1} de {resolvedUrls.length}
+                      Lâmina {activeSlide + 1} de {mediaList.length}
                     </span>
                   </div>
-                ) : (isReelOrVideo && effectiveDriveUrl) ? (
-                  /* Single Reel / Drive Video */
-                  <div className="w-full h-full relative" data-testid="detail-video-wrapper">
-                    <DriveVideoPlayer
-                      url={effectiveDriveUrl}
-                      title={post.title}
-                      aspectClass={contentInfo.aspectClass}
-                      autoPlay={true}
-                      forceMode={playerMode}
-                      onModeChange={setPlayerMode}
-                    />
-                  </div>
-                ) : resolvedUrls && resolvedUrls.length === 1 ? (
-                  /* Single item (image or uploaded video) */
+                ) : mediaList.length === 1 ? (
+                  /* Single item */
                   <div className="relative w-full h-full flex items-center justify-center bg-black">
-                    {isVideoUrl(resolvedUrls[0]) || isDriveVideoUrl(resolvedUrls[0]) ? (
-                      isDriveVideoUrl(resolvedUrls[0]) ? (
-                        <DriveVideoPlayer
-                          url={resolvedUrls[0]}
-                          title={post.title}
-                          aspectClass={contentInfo.aspectClass}
-                          autoPlay={true}
-                          forceMode={playerMode}
-                          onModeChange={setPlayerMode}
-                        />
+                    {mediaList[0].type === 'video' ? (
+                      mediaList[0].isDrive ? (
+                        <div className="w-full h-full relative" data-testid="detail-video-wrapper">
+                          <DriveVideoPlayer
+                            url={mediaList[0].url}
+                            title={post.title}
+                            aspectClass={contentInfo.aspectClass}
+                            autoPlay={true}
+                            forceMode={playerMode}
+                            onModeChange={setPlayerMode}
+                          />
+                        </div>
                       ) : (
                         <video
-                          src={resolvedUrls[0]}
+                          src={mediaList[0].url}
                           controls
                           playsInline
                           autoPlay
@@ -348,11 +356,23 @@ export const PostDetailView: React.FC<PostDetailViewProps> = ({
                         />
                       )
                     ) : (
-                      <img
-                        src={resolvedUrls[0]}
-                        alt={post.title}
-                        className="w-full h-full object-contain"
-                      />
+                      <div className="w-full h-full relative flex items-center justify-center bg-black">
+                        <img
+                          src={mediaList[0].url}
+                          alt={post.title}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const fallback = target.parentElement?.querySelector('.detail-single-fallback') as HTMLElement;
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
+                        />
+                        <div className="detail-single-fallback hidden w-full h-full flex-col items-center justify-center bg-slate-900 text-slate-400 p-6">
+                          <ImageIcon className="w-12 h-12 mb-3 opacity-50 text-slate-400" />
+                          <span className="text-sm font-semibold text-slate-200">{post.title}</span>
+                        </div>
+                      </div>
                     )}
                   </div>
                 ) : (

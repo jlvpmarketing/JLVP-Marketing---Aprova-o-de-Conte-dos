@@ -1,4 +1,5 @@
-import { PostContent, ContentTypeFormat } from '../types';
+import { PostContent, ContentTypeFormat, MediaItem } from '../types';
+import { extractDriveFileId } from './drivePlayer';
 
 export function getPostContentType(post: PostContent): ContentTypeFormat {
   if (post.contentType) {
@@ -98,5 +99,94 @@ export function isVideoUrl(url?: string): boolean {
 export function isImageUrl(url?: string): boolean {
   if (!url) return false;
   return !isVideoUrl(url);
+}
+
+export interface SlideMediaInfo {
+  url: string;
+  type: 'image' | 'video';
+  isDrive: boolean;
+  driveFileId?: string;
+  name?: string;
+}
+
+export function getSlideMediaInfo(
+  item?: string | MediaItem, 
+  fallbackUrl?: string
+): SlideMediaInfo {
+  let url = '';
+  let explicitType: 'image' | 'video' | undefined;
+  let driveId: string | undefined;
+  let name: string | undefined;
+
+  if (typeof item === 'string') {
+    url = item;
+  } else if (item && typeof item === 'object') {
+    url = item.url || '';
+    explicitType = item.type;
+    driveId = item.driveFileId;
+    name = item.name;
+  }
+
+  if (!url && fallbackUrl) {
+    url = fallbackUrl;
+  }
+
+  url = url ? url.trim() : '';
+  const isDrive = isDriveVideoUrl(url);
+  if (!driveId && isDrive) {
+    driveId = extractDriveFileId(url) || undefined;
+  }
+
+  let finalType: 'image' | 'video' = 'image';
+  if (isDrive || isVideoUrl(url)) {
+    finalType = 'video';
+  } else if (/\.(jpe?g|png|webp|gif|svg|avif|bmp)(\?.*)?$/i.test(url) || url.startsWith('data:image/')) {
+    finalType = 'image';
+  } else if (explicitType === 'video' || explicitType === 'image') {
+    finalType = explicitType;
+  } else {
+    finalType = isVideoUrl(url) ? 'video' : 'image';
+  }
+
+  return {
+    url,
+    type: finalType,
+    isDrive,
+    driveFileId: driveId,
+    name,
+  };
+}
+
+export function getPostMediaList(post?: PostContent | null, resolvedUrls: string[] = []): SlideMediaInfo[] {
+  if (!post) return [];
+
+  if (post.media && Array.isArray(post.media) && post.media.length > 0) {
+    return post.media.map((item, idx) => {
+      const resolved = resolvedUrls[idx] || item.url;
+      const info = getSlideMediaInfo(item, resolved);
+      if (resolved) {
+        info.url = resolved;
+      }
+      return info;
+    });
+  }
+
+  if (post.mediaUrls && Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0) {
+    return post.mediaUrls.map((url, idx) => {
+      const resolved = resolvedUrls[idx] || url;
+      return getSlideMediaInfo(resolved || url);
+    });
+  }
+
+  if (post.imageUrl) {
+    const resolved = resolvedUrls[0] || post.imageUrl;
+    return [getSlideMediaInfo(resolved)];
+  }
+
+  if (post.driveVideoUrl) {
+    return [getSlideMediaInfo(post.driveVideoUrl)];
+  }
+
+  return [];
 }
 
