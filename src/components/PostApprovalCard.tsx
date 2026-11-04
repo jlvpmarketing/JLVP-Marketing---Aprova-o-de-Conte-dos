@@ -306,13 +306,13 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
             "O botão de aprovar o post deve ficar antes do botão de pedir ajuste"
         */}
         {role === 'client' ? (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
             {/* 1. Botão de Aprovar (PRIMEIRO) */}
             {post.status !== 'approved' ? (
               <button
                 type="button"
                 onClick={handleApprove}
-                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1"
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Aprovar</span>
@@ -327,8 +327,11 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
             {post.status !== 'approved' && onRequestChanges && (
               <button
                 type="button"
-                onClick={() => onRequestChanges(post)}
-                className="px-2.5 py-1.5 rounded-lg border border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 text-xs font-semibold transition-colors flex items-center gap-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRequestChanges(post);
+                }}
+                className="px-2.5 py-1.5 rounded-lg border border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100 text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer active:scale-95"
               >
                 <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                 <span>Pedir Ajuste</span>

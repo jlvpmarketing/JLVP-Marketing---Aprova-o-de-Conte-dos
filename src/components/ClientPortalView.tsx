@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp, getDeletedPostIds, getDeletedProjectIds, getDeletedClientIds, TEST_POST_BLACKLIST, isTestOrBlacklistedPost } from '../context/AppContext';
 import { firestoreSync } from '../services/firestoreSync';
-import { PostContent, FolderProject, Client } from '../types';
+import { PostContent, FolderProject, Client, GeneralChatMessage } from '../types';
 import { normalizePostStatus } from '../utils/contentTypeHelper';
 import { PostApprovalCard } from './PostApprovalCard';
 import { PostDetailView } from './PostDetailView';
@@ -304,8 +304,36 @@ export const ClientPortalView: React.FC = () => {
   const changesPosts = clientPosts.filter(p => normalizePostStatus(p.status) === 'changes_requested');
   const approvedPosts = clientPosts.filter(p => normalizePostStatus(p.status) === 'approved');
 
-  // Total comments in this client's posts
-  const projectCommentsCount = clientPosts.reduce((acc, p) => acc + (p.comments?.length || 0), 0);
+  // Real-time chat messages for client portal general chat
+  const [messages, setMessages] = useState<GeneralChatMessage[]>([]);
+
+  useEffect(() => {
+    if (!client?.id) {
+      setMessages([]);
+      return;
+    }
+
+    try {
+      const cached = localStorage.getItem(`aprovaflow_chat_${client.id}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setMessages(parsed);
+        }
+      }
+    } catch {}
+
+    const unsubscribe = firestoreSync.subscribeToClientChat(client.id, (loaded) => {
+      setMessages(loaded || []);
+      try {
+        localStorage.setItem(`aprovaflow_chat_${client.id}`, JSON.stringify(loaded || []));
+      } catch {}
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [client?.id]);
 
   // Client notifications strictly scoped to this client & project
   const clientNotifications = notifications.filter(n => {
@@ -445,9 +473,9 @@ export const ClientPortalView: React.FC = () => {
             >
               <MessageSquare className="w-3.5 h-3.5 text-slate-700" />
               <span>Chat</span>
-              {projectCommentsCount > 0 && (
+              {messages?.length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-slate-900 text-white">
-                  {projectCommentsCount}
+                  {messages.length}
                 </span>
               )}
             </button>
