@@ -7,6 +7,7 @@ import { compressImage } from '../utils/imageCompressor';
 import { mediaStorage } from '../services/mediaStorage';
 import { serverSync } from '../services/serverSync';
 import { firestoreSync } from '../services/firestoreSync';
+import { uploadToCloudinary } from '../services/cloudinary';
 import { DriveVideoPlayer } from './DriveVideoPlayer';
 import { 
   PlusCircle, 
@@ -185,63 +186,22 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
     setIsUploading(true);
     const newItems: MediaItem[] = [];
     const newUrls: string[] = [];
+    const fileList = Array.from(files);
 
-    for (const file of Array.from(files)) {
+    for (let idx = 0; idx < fileList.length; idx++) {
+      const file = fileList[idx];
       try {
-        if (file.type.startsWith('image/')) {
-          // Compress image and stream directly to server disk
-          const compressed = await compressImage(file, 900, 1200, 0.70);
-          let finalUrl = compressed;
-          try {
-            const serverUrl = await serverSync.uploadMedia(compressed, 'image/jpeg', file.name);
-            if (serverUrl && serverUrl.startsWith('/api/media/')) {
-              finalUrl = serverUrl;
-            }
-          } catch {}
-          newUrls.push(finalUrl);
-          newItems.push({ url: finalUrl, type: 'image', name: file.name });
-        } else if (file.type.startsWith('video/')) {
-          // Allow video files directly up to 80MB
-          if (file.size > 80 * 1024 * 1024) {
-            addToast('error', 'Arquivo Muito Grande', 'O tamanho máximo para upload direto de vídeo é 80MB. Para vídeos maiores, use o link do Google Drive.');
-            continue;
-          }
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-          
-          let finalUrl = base64;
-          try {
-            const serverUrl = await serverSync.uploadMedia(base64, file.type, file.name);
-            if (serverUrl && serverUrl.startsWith('/api/media/')) {
-              finalUrl = serverUrl;
-            }
-          } catch {}
-          newUrls.push(finalUrl);
-          newItems.push({ url: finalUrl, type: 'video', name: file.name });
-        } else {
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-          let finalUrl = base64;
-          try {
-            const serverUrl = await serverSync.uploadMedia(base64, file.type || 'application/octet-stream', file.name);
-            if (serverUrl && serverUrl.startsWith('/api/media/')) {
-              finalUrl = serverUrl;
-            }
-          } catch {}
-          const isVid = (file.type && file.type.startsWith('video/')) || isVideoUrl(file.name);
-          newUrls.push(finalUrl);
-          newItems.push({ url: finalUrl, type: isVid ? 'video' : 'image', name: file.name });
-        }
-      } catch (err) {
-        console.warn('Erro ao processar mídia:', err);
+        addToast('info', 'Enviando para Nuvem', `Enviando arquivo ${idx + 1} de ${fileList.length} (${file.name})...`);
+        const result = await uploadToCloudinary(file, file.name);
+        newUrls.push(result.url);
+        newItems.push({
+          url: result.url,
+          type: result.type,
+          name: file.name,
+        });
+      } catch (err: any) {
+        console.error('Erro ao subir para o Cloudinary:', err);
+        addToast('error', 'Falha no Upload', `Não foi possível enviar "${file.name}" para a nuvem.`);
       }
     }
 
@@ -415,17 +375,17 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
           }
         }
 
-        // Upload any data URL to server disk
+        // Upload any data URL to Cloudinary so no heavy base64 enters Firestore
         if (url.startsWith('data:')) {
-          const itemType = mediaItems[i]?.type || (url.startsWith('data:video') ? 'video' : 'image');
-          const mime = itemType === 'video' ? 'video/mp4' : 'image/jpeg';
           try {
-            const serverUrl = await serverSync.uploadMedia(url, mime, mediaItems[i]?.name);
-            if (serverUrl && serverUrl.startsWith('/api/media/')) {
-              url = serverUrl;
+            const uploaded = await uploadToCloudinary(url, mediaItems[i]?.name || 'arquivo');
+            url = uploaded.url;
+            if (mediaItems[i]) {
+              mediaItems[i].url = url;
+              mediaItems[i].type = uploaded.type;
             }
           } catch (uErr) {
-            console.warn('Erro ao enviar mídia ao servidor:', uErr);
+            console.warn('Erro ao enviar mídia ao Cloudinary:', uErr);
           }
         }
 
@@ -1000,7 +960,14 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                   <div className="relative w-full h-full flex items-center justify-center">
                     {(() => {
                       const currentItem = mediaItems[activeSlide] || mediaItems[0] || (mediaUrls[activeSlide] ? { url: mediaUrls[activeSlide], type: isVideoUrl(mediaUrls[activeSlide]) || isDriveVideoUrl(mediaUrls[activeSlide]) ? 'video' : 'image' } : null);
-                      if (!currentItem || !currentItem.url) return null;
+                      if (!currentItem || !currentItem.url) {
+                        return (
+                          <div className="p-6 text-center text-slate-400 flex flex-col items-center justify-center">
+                            <ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                            <p className="text-xs">Sem mídia visual selecionada</p>
+                          </div>
+                        );
+                      }
                       const isDrive = isDriveVideoUrl(currentItem.url);
                       if (currentItem.type === 'video') {
                         if (isDrive) {
@@ -1017,10 +984,12 @@ export const ContentUploadModal: React.FC<ContentUploadModalProps> = ({ isOpen, 
                             src={currentItem.url}
                             controls
                             playsInline
+                            muted
                             className="w-full h-full object-cover"
                           />
                         );
                       }
+                      // Default to image if undefined or image
                       return (
                         <img
                           src={currentItem.url}

@@ -11,6 +11,7 @@ import {
 import { db, testFirestoreConnection } from '../firebase';
 import { Client, FolderProject, PostContent, AgencyUser, AuditLogItem, AgencyConfig, NotificationItem, GeneralChatMessage, MediaItem } from '../types';
 import { isDriveVideoUrl, isVideoUrl, normalizePostFromFirestore, normalizePostStatus } from '../utils/contentTypeHelper';
+import { uploadToCloudinary } from './cloudinary';
 
 let isFirestoreConnected = false;
 
@@ -141,46 +142,52 @@ export const firestoreSync = {
         finalPost.updatedAt = new Date().toISOString();
       }
 
-      // Check media URLs: ensure no single base64 string exceeds 400KB so document stays safely under Firestore 1MB limit
-      if (finalPost.mediaUrls && finalPost.mediaUrls.length > 0) {
-        const processedUrls = await Promise.all(
-          finalPost.mediaUrls.map(async (url) => {
-            if (!url) return '';
-            // If it's already a hosted URL or Google Drive link, keep as is
-            if (url.startsWith('/api/media/') || url.startsWith('http://') || url.startsWith('https://')) {
-              return url;
-            }
-            // If it's a heavy video base64, ensure it is uploaded to server disk first
-            if (url.startsWith('data:video') || url.length > 300 * 1024) {
-              const mime = url.startsWith('data:video') ? 'video/mp4' : 'image/jpeg';
+      // Ensure media array of {url, type} is always populated and free of base64
+      if (finalPost.media && finalPost.media.length > 0) {
+        finalPost.media = await Promise.all(
+          finalPost.media.map(async (m: MediaItem) => {
+            let url = m.url || '';
+            let type: 'image' | 'video' = m.type === 'video' ? 'video' : 'image';
+            if (url.startsWith('data:')) {
               try {
-                const uploaded = await mediaStorage.storeMedia(url, mime);
-                if (uploaded && !uploaded.startsWith('video_chunkref') && !uploaded.startsWith('chunkref')) {
-                  return uploaded;
-                }
+                const uploaded = await uploadToCloudinary(url, m.name);
+                url = uploaded.url;
+                type = uploaded.type;
               } catch (uErr) {
-                console.warn('Erro ao processar mídia pesada:', uErr);
+                console.warn('Erro ao enviar mídia ao Cloudinary:', uErr);
               }
             }
-            return url;
+            return {
+              url,
+              type,
+              ...(m.name ? { name: m.name } : {}),
+              ...(m.driveFileId ? { driveFileId: m.driveFileId } : {}),
+            };
           })
         );
-        finalPost.mediaUrls = processedUrls.filter(u => Boolean(u));
-      }
-
-      // Ensure media array of {url, type} is always populated
-      if (finalPost.media && finalPost.media.length > 0) {
-        finalPost.media = finalPost.media.map((m: MediaItem) => ({
-          url: m.url,
-          type: m.type || (isDriveVideoUrl(m.url) || isVideoUrl(m.url) ? 'video' : 'image'),
-          ...(m.name ? { name: m.name } : {}),
-          ...(m.driveFileId ? { driveFileId: m.driveFileId } : {}),
-        }));
+        finalPost.mediaUrls = finalPost.media.map(m => m.url);
       } else if (finalPost.mediaUrls && finalPost.mediaUrls.length > 0) {
-        finalPost.media = finalPost.mediaUrls.map((u: string) => ({
-          url: u,
-          type: (isDriveVideoUrl(u) || isVideoUrl(u) ? 'video' : 'image') as 'image' | 'video',
-        }));
+        const processedMedia: MediaItem[] = await Promise.all(
+          finalPost.mediaUrls.map(async (url: string) => {
+            let finalUrl = url;
+            let finalType: 'image' | 'video' = isVideoUrl(url) ? 'video' : 'image';
+            if (url.startsWith('data:')) {
+              try {
+                const uploaded = await uploadToCloudinary(url);
+                finalUrl = uploaded.url;
+                finalType = uploaded.type;
+              } catch (uErr) {
+                console.warn('Erro ao enviar base64 para o Cloudinary:', uErr);
+              }
+            }
+            return {
+              url: finalUrl,
+              type: finalType,
+            };
+          })
+        );
+        finalPost.media = processedMedia;
+        finalPost.mediaUrls = processedMedia.map(m => m.url);
       }
 
       const cleanData = sanitizeForFirestore(finalPost);

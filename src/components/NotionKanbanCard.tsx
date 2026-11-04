@@ -1,6 +1,6 @@
 import React from 'react';
 import { PostContent } from '../types';
-import { getContentTypeInfo } from '../utils/contentTypeHelper';
+import { getContentTypeInfo, isVideoUrl } from '../utils/contentTypeHelper';
 import { 
   Calendar, 
   Clock, 
@@ -97,6 +97,46 @@ export const NotionKanbanCard: React.FC<NotionKanbanCardProps> = ({
           <span className="font-bold">Ajuste:</span> {post.requestedChangesNote}
         </div>
       )}
+
+      {/* Media Preview - Video with controls or Img tag */}
+      {(() => {
+        const media = (post.media && post.media.length > 0)
+          ? post.media[0]
+          : (post.mediaUrls && post.mediaUrls.length > 0)
+          ? { url: post.mediaUrls[0], type: (isVideoUrl(post.mediaUrls[0]) ? 'video' : 'image') as 'image' | 'video' }
+          : null;
+
+        if (!media || !media.url) return null;
+
+        if (media.type === 'video') {
+          return (
+            <div className="w-full aspect-[4/3] rounded-lg overflow-hidden bg-black relative border border-slate-200">
+              <video
+                src={media.url}
+                controls
+                playsInline
+                muted
+                onClick={e => e.stopPropagation()}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          );
+        }
+
+        // media.type === 'image' or undefined default to <img>
+        return (
+          <div className="w-full aspect-[4/3] rounded-lg overflow-hidden bg-slate-100 relative border border-slate-200">
+            <img
+              src={media.url}
+              alt={post.title}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          </div>
+        );
+      })()}
 
       {/* Card Footer: Comments & Actions */}
       <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">

@@ -183,21 +183,17 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
                     <video
                       key={`card_video_${activeSlide}_${currentMedia.url}`}
                       src={currentMedia.url}
-                      className="w-full h-full object-cover"
-                      muted
+                      controls
                       playsInline
-                      loop
-                      autoPlay
+                      muted
+                      onClick={e => e.stopPropagation()}
+                      className="w-full h-full object-cover"
                     />
-                    <div className="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
-                      <div className="bg-black/75 text-white text-[10px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md border border-white/20">
-                        <Play className="w-3 h-3 fill-amber-400 text-amber-400" />
-                        <span>Vídeo{mediaList.length > 1 ? ` (#${activeSlide + 1})` : ''}</span>
-                      </div>
-                    </div>
                   </div>
                 );
               }
+
+              // media.type === 'image' or undefined default to <img>
               return (
                 <div key={`card_img_wrap_${activeSlide}`} className="w-full h-full relative bg-slate-950 flex items-center justify-center">
                   <img

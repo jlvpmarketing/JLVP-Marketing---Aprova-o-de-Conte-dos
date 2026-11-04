@@ -104,6 +104,7 @@ export function isVideoUrl(url?: string): boolean {
   if (lower.startsWith('data:video/')) return true;
   if (lower.startsWith('video_chunkref:')) return true;
   if (isDriveVideoUrl(lower)) return true;
+  if (lower.includes('/video/upload/')) return true;
   if (/\.(mp4|mov|webm|m4v|ogg|avi|mkv)(\?.*)?$/i.test(lower)) return true;
   return false;
 }
@@ -149,15 +150,16 @@ export function getSlideMediaInfo(
     driveId = extractDriveFileId(url) || undefined;
   }
 
+  // Prioritize explicit type, then detect video, fallback to image
   let finalType: 'image' | 'video' = 'image';
-  if (isDrive || isVideoUrl(url)) {
+  if (explicitType === 'video') {
     finalType = 'video';
-  } else if (/\.(jpe?g|png|webp|gif|svg|avif|bmp)(\?.*)?$/i.test(url) || url.startsWith('data:image/')) {
+  } else if (explicitType === 'image') {
     finalType = 'image';
-  } else if (explicitType === 'video' || explicitType === 'image') {
-    finalType = explicitType;
+  } else if (isDrive || isVideoUrl(url)) {
+    finalType = 'video';
   } else {
-    finalType = isVideoUrl(url) ? 'video' : 'image';
+    finalType = 'image';
   }
 
   return {
@@ -225,7 +227,7 @@ export function normalizePostFromFirestore(raw: any, docId?: string): PostConten
     media = raw.media.map((item: any, i: number) => {
       const url = item?.url || mediaUrls[i] || '';
       const isDrive = isDriveVideoUrl(url);
-      const isVid = isDrive || isVideoUrl(url) || item?.type === 'video';
+      const isVid = item?.type === 'video' ? true : item?.type === 'image' ? false : (isDrive || isVideoUrl(url));
       return {
         url,
         type: isVid ? ('video' as const) : ('image' as const),
