@@ -10,6 +10,7 @@ export type UserRole = 'owner' | 'manager' | 'creator' | 'viewer';
 
 export interface AgencyUser {
   id: string;
+  uid?: string;
   name: string;
   email: string;
   phone?: string; // WhatsApp number
@@ -19,6 +20,7 @@ export interface AgencyUser {
   createdAt: string;
   lastLogin?: string;
   status: 'active' | 'inactive';
+  clientOrder?: string[];
 }
 
 export interface AuditLogItem {

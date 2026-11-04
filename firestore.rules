@@ -27,6 +27,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Standard Users collection (stores custom preferences, clientOrder, etc)
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
     // Audit logs
     match /audit_logs/{logId} {
       allow read, write: if true;

@@ -51,6 +51,7 @@ interface AppContextType {
   isProfileModalOpen: boolean;
   setIsProfileModalOpen: (open: boolean) => void;
   updateCurrentUserProfile: (updates: Partial<AgencyUser>) => void;
+  saveClientOrder: (newOrder: string[]) => Promise<void>;
   assignClientManager: (clientId: string, managerId: string, managerName: string) => void;
   assignClientManagers: (clientId: string, managerIds: string[]) => void;
 
@@ -834,6 +835,44 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     addToast('success', 'Perfil Atualizado', 'Sua foto e dados foram salvos com sucesso.');
   };
 
+  const saveClientOrder = async (newOrder: string[]) => {
+    if (!currentUser) return;
+    const uid = currentUser.uid || currentUser.id;
+    const cleanOrder = Array.isArray(newOrder) ? newOrder : [];
+    const updated: AgencyUser = { ...currentUser, clientOrder: cleanOrder };
+    setCurrentUser(updated);
+    setUsers(prev => prev.map(u => u.id === currentUser.id ? updated : u));
+    try {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
+    await firestoreSync.saveUserClientOrder(uid, cleanOrder);
+  };
+
+  // Sync clientOrder from Firestore for currentUser
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const uid = currentUser.uid || currentUser.id;
+    firestoreSync.fetchUserClientOrder(uid).then(order => {
+      if (order && Array.isArray(order) && order.length > 0) {
+        setCurrentUser(prev => {
+          if (!prev) return null;
+          if (JSON.stringify(prev.clientOrder) !== JSON.stringify(order)) {
+            const updated = { ...prev, clientOrder: order };
+            try {
+              localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
+            } catch (err) {
+              console.warn(err);
+            }
+            return updated;
+          }
+          return prev;
+        });
+      }
+    });
+  }, [currentUser?.id]);
+
   const assignClientManager = (clientId: string, managerId: string, managerName: string) => {
     assignClientManagers(clientId, managerId ? [managerId] : []);
   };
@@ -1462,6 +1501,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isProfileModalOpen,
         setIsProfileModalOpen,
         updateCurrentUserProfile,
+        saveClientOrder,
         assignClientManager,
         assignClientManagers,
         auditLogs,

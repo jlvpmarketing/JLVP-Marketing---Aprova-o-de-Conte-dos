@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Client, PostContent, NotificationItem } from '../types';
 import { CalendarView } from './CalendarView';
@@ -24,9 +24,22 @@ import {
   Check,
   CheckSquare,
   Square,
-  ChevronDown
+  ChevronDown,
+  GripVertical
 } from 'lucide-react';
 import { NotificationsDrawer } from './NotificationsDrawer';
+
+// Helper to sort clients according to saved clientOrder preference
+function sortClientsByOrder(clientList: Client[], order?: string[]): Client[] {
+  if (!order || !Array.isArray(order) || order.length === 0) return clientList;
+  const orderMap = new Map(order.map((id, index) => [id, index]));
+  return [...clientList].sort((a, b) => {
+    const posA = orderMap.has(a.id) ? orderMap.get(a.id)! : 999999;
+    const posB = orderMap.has(b.id) ? orderMap.get(b.id)! : 999999;
+    if (posA !== posB) return posA - posB;
+    return (a.company || '').localeCompare(b.company || '');
+  });
+}
 
 interface HomeOverviewProps {
   onOpenNewClient: () => void;
@@ -52,12 +65,41 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
     openClientDetailPage,
     openClientPortalByProject,
     currentUser,
+    saveClientOrder,
     addToast,
     selectedMonthFilter,
     setSelectedMonthFilter,
     availableMonths,
     openEditPostModal
   } = useApp();
+
+  // Custom Drag-and-Drop Ordered Clients state
+  const [orderedClients, setOrderedClients] = useState<Client[]>(() => 
+    sortClientsByOrder(clients, currentUser?.clientOrder)
+  );
+  const [draggedClientId, setDraggedClientId] = useState<string | null>(null);
+  const [dragOverClientId, setDragOverClientId] = useState<string | null>(null);
+
+  // Sync ordered clients when clients or currentUser.clientOrder updates
+  useEffect(() => {
+    setOrderedClients(sortClientsByOrder(clients, currentUser?.clientOrder));
+  }, [clients, currentUser?.clientOrder]);
+
+  const handleReorderClients = async (sourceId: string, targetId: string) => {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const sourceIndex = orderedClients.findIndex(c => c.id === sourceId);
+    const targetIndex = orderedClients.findIndex(c => c.id === targetId);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const updated = [...orderedClients];
+    const [moved] = updated.splice(sourceIndex, 1);
+    updated.splice(targetIndex, 0, moved);
+    setOrderedClients(updated);
+
+    const newOrder = updated.map(c => c.id);
+    await saveClientOrder(newOrder);
+    addToast('success', 'Ordem Personalizada Salva', 'Sua organização de clientes foi salva com sucesso no seu perfil.');
+  };
 
   // Modals & Publication Page
   const [selectedPostDetail, setSelectedPostDetail] = useState<PostContent | null>(null);
@@ -545,9 +587,13 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
               <p className="text-xs text-slate-500">Clique em qualquer card para abrir diretamente a página do cliente</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-xl font-medium">
+              <GripVertical className="w-3.5 h-3.5" />
+              <span>Arraste os cards para reorganizar</span>
+            </span>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-mono">
-              {clients.length} cadastrados
+              {orderedClients.length} cadastrados
             </span>
             <button
               type="button"
@@ -562,18 +608,59 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {clients.map(client => {
+          {orderedClients.map(client => {
             const clientProjects = projects.filter(p => p.clientId === client.id);
             const clientPosts = posts.filter(p => p.clientId === client.id);
             const clientPending = clientPosts.filter(p => p.status === 'pending_approval').length;
             const clientChanges = clientPosts.filter(p => p.status === 'changes_requested').length;
             const clientApproved = clientPosts.filter(p => p.status === 'approved').length;
 
+            const isDragged = draggedClientId === client.id;
+            const isDragOver = dragOverClientId === client.id && !isDragged;
+
             return (
               <div
                 key={client.id}
+                draggable={true}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', client.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggedClientId(client.id);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverClientId !== client.id) {
+                    setDragOverClientId(client.id);
+                  }
+                }}
+                onDragLeave={(e) => {
+                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                  if (dragOverClientId === client.id) {
+                    setDragOverClientId(null);
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const sourceId = e.dataTransfer.getData('text/plain') || draggedClientId;
+                  if (sourceId) {
+                    handleReorderClients(sourceId, client.id);
+                  }
+                  setDraggedClientId(null);
+                  setDragOverClientId(null);
+                }}
+                onDragEnd={() => {
+                  setDraggedClientId(null);
+                  setDragOverClientId(null);
+                }}
                 onClick={() => openClientDetailPage(client.id)}
-                className="bg-white rounded-2xl border border-slate-200/90 hover:border-black p-5 shadow-xs hover:shadow-lg transition-all flex flex-col justify-between group cursor-pointer relative"
+                className={`bg-white rounded-2xl border p-5 shadow-xs transition-all flex flex-col justify-between group cursor-pointer relative ${
+                  isDragged
+                    ? 'opacity-40 border-dashed border-indigo-400 bg-indigo-50/20 scale-[0.98]'
+                    : isDragOver
+                    ? 'ring-2 ring-indigo-500 border-indigo-500 shadow-lg scale-[1.02] bg-indigo-50/30'
+                    : 'border-slate-200/90 hover:border-black hover:shadow-lg'
+                }`}
               >
                 <div>
                   {/* Client card header */}
@@ -606,8 +693,15 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
                       </div>
                     </div>
 
-                    {/* Quick Edit and Delete buttons for Client */}
+                    {/* Drag Grip + Quick Edit and Delete buttons for Client */}
                     <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <div
+                        className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 cursor-grab active:cursor-grabbing transition-colors"
+                        title="Arraste para reorganizar a ordem deste cliente"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <GripVertical className="w-3.5 h-3.5" />
+                      </div>
                       <button
                         type="button"
                         onClick={e => {

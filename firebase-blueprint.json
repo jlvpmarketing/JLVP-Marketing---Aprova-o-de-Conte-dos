@@ -114,6 +114,10 @@
       "schema": "AgencyUser",
       "description": "Agency team members with role-based access"
     },
+    "/users/{userId}": {
+      "schema": "AgencyUser",
+      "description": "User profile with personalized views and custom clientOrder"
+    },
     "/audit_logs/{logId}": {
       "schema": "AuditLogItem",
       "description": "Audit trail of actions performed across the system"

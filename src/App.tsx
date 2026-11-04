@@ -58,6 +58,28 @@ const MainApp: React.FC = () => {
   const [databaseBackupOpen, setDatabaseBackupOpen] = useState(false);
   const [selectedCalendarPost, setSelectedCalendarPost] = useState<PostContent | null>(null);
 
+  // Sidebar collapsible state
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('aprovaflow_sidebar_open');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('aprovaflow_sidebar_open', String(next));
+      } catch (err) {
+        console.warn(err);
+      }
+      return next;
+    });
+  };
+
   const handleOpenNewClient = () => {
     setClientToEdit(null);
     setClientModalOpen(true);
@@ -83,6 +105,8 @@ const MainApp: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row text-slate-800">
       {/* PC lateral sidebar: menu geral, todo o sistema e notificações */}
       <Sidebar
+        isOpen={isSidebarOpen}
+        onToggleSidebar={toggleSidebar}
         onOpenNewClient={handleOpenNewClient}
         onOpenEditClient={handleOpenEditClient}
         onOpenThemeCustomizer={() => setThemeCustomizerOpen(true)}
@@ -99,7 +123,7 @@ const MainApp: React.FC = () => {
       {/* Main Agency Viewport:
           Default is 'home' (Tela Inicial com todos os clientes, notificações de todos e calendário geral)
       */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 min-w-0 overflow-y-auto transition-all duration-300 ease-in-out">
         {agencyPage === 'home' && (
           <HomeOverview
             onOpenNewClient={handleOpenNewClient}

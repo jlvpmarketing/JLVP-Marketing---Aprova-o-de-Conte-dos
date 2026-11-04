@@ -3,6 +3,7 @@ import {
   doc, 
   setDoc, 
   getDocs, 
+  getDoc,
   deleteDoc, 
   onSnapshot,
   query,
@@ -259,9 +260,57 @@ export const firestoreSync = {
     try {
       const cleanData = sanitizeForFirestore(user);
       await setDoc(doc(db, 'agency_users', user.id), cleanData, { merge: true });
+      // Also write to users collection to guarantee user document exists
+      await setDoc(doc(db, 'users', user.id), cleanData, { merge: true });
       console.log('✅ Usuário gravado no Firestore:', user.id);
     } catch (err) {
       console.error('❌ Erro ao salvar usuário no Firestore:', err);
+    }
+  },
+
+  // Save custom client order specifically in users/{userId} (and agency_users/{userId})
+  async saveUserClientOrder(userId: string, clientOrder: string[]): Promise<boolean> {
+    try {
+      if (!userId) return false;
+      const cleanOrder = Array.isArray(clientOrder) ? clientOrder : [];
+      // Primary: users collection as requested
+      await setDoc(doc(db, 'users', userId), { clientOrder: cleanOrder }, { merge: true });
+      // Secondary: agency_users collection for synchronization
+      await setDoc(doc(db, 'agency_users', userId), { clientOrder: cleanOrder }, { merge: true });
+      console.log('✅ clientOrder gravado com sucesso no Firestore (users/' + userId + '):', cleanOrder);
+      return true;
+    } catch (err) {
+      console.error('❌ Erro ao salvar clientOrder no Firestore:', err);
+      return false;
+    }
+  },
+
+  // Fetch custom client order for a specific user
+  async fetchUserClientOrder(userId: string): Promise<string[] | null> {
+    try {
+      if (!userId) return null;
+      // First check users/{userId}
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        if (Array.isArray(data?.clientOrder)) {
+          return data.clientOrder as string[];
+        }
+      }
+
+      // Fallback check agency_users/{userId}
+      const agencyUserDoc = await getDoc(doc(db, 'agency_users', userId));
+      if (agencyUserDoc.exists()) {
+        const data = agencyUserDoc.data();
+        if (Array.isArray(data?.clientOrder)) {
+          return data.clientOrder as string[];
+        }
+      }
+
+      return null;
+    } catch (err) {
+      console.warn('Erro ao carregar clientOrder do Firestore:', err);
+      return null;
     }
   },
 
@@ -269,6 +318,7 @@ export const firestoreSync = {
   async deleteUser(userId: string) {
     try {
       await deleteDoc(doc(db, 'agency_users', userId));
+      await deleteDoc(doc(db, 'users', userId));
     } catch (err) {
       console.warn('Erro ao remover usuário do Firestore:', err);
     }
