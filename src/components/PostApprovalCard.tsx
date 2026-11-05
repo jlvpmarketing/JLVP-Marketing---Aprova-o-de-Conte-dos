@@ -61,10 +61,12 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
     addToast('success', 'Publicação Aprovada!', 'O status foi atualizado para Aprovado com sucesso.');
   };
 
-  const handleCardClick = (e: React.MouseEvent) => {
-    // Prevent opening modal if an internal interactive button/control was clicked
-    if ((e.target as HTMLElement)?.closest('button, video, a, input, textarea')) {
-      return;
+  const handleOpenPost = (e?: React.MouseEvent) => {
+    if (e) {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('button')) {
+        return;
+      }
     }
     if (onOpenDetail) {
       onOpenDetail(post, activeSlide);
@@ -87,7 +89,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
 
   return (
     <div 
-      onClick={handleCardClick}
+      onClick={handleOpenPost}
       className={`bg-white rounded-2xl border overflow-hidden flex flex-col group cursor-pointer shadow-xs hover:shadow-lg active:scale-[0.99] transition-transform select-none sm:select-auto ${
         post.status === 'pending_approval'
           ? 'border-amber-300 hover:border-amber-400'
@@ -133,7 +135,10 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
       </div>
 
       {/* Title */}
-      <div className="px-4 py-2.5 border-b border-slate-50 flex items-center justify-between">
+      <div 
+        onClick={handleOpenPost}
+        className="px-4 py-2.5 border-b border-slate-50 flex items-center justify-between cursor-pointer"
+      >
         <h3 className="font-semibold text-slate-900 text-sm leading-snug line-clamp-1 group-hover:text-indigo-600 transition-colors">
           {post.title}
         </h3>
@@ -144,13 +149,16 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
       </div>
 
       {/* Visual Content Preview (WITHOUT CAPTION: 1080x1350 [4:5] for Static/Carousel, 9:16 for Reel/Story) */}
-      <div className={`relative w-full bg-slate-950 flex items-center justify-center overflow-hidden ${
-        contentInfo.type === 'reel' || contentInfo.type === 'story'
-          ? 'aspect-[9/16] max-h-[480px]'
-          : 'aspect-[4/5] max-h-[480px]'
-      }`}>
+      <div 
+        onClick={handleOpenPost}
+        className={`relative w-full bg-slate-950 flex items-center justify-center overflow-hidden cursor-pointer ${
+          contentInfo.type === 'reel' || contentInfo.type === 'story'
+            ? 'aspect-[9/16] max-h-[480px]'
+            : 'aspect-[4/5] max-h-[480px]'
+        }`}
+      >
         {mediaList.length > 0 ? (
-          <div className="relative w-full h-full bg-black flex items-center justify-center">
+          <div className="relative w-full h-full bg-black flex items-center justify-center pointer-events-auto">
             {(() => {
               const currentMedia = mediaList[activeSlide] || mediaList[0];
               if (currentMedia.type === 'video') {
@@ -161,7 +169,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
                         <img
                           src={`https://lh3.googleusercontent.com/d/${currentMedia.driveFileId}`}
                           alt={post.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             if (!target.dataset.triedBackup) {
@@ -173,7 +181,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
                           }}
                         />
                       ) : null}
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
                         <div className="bg-black/80 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md border border-white/20">
                           <Play className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                           <span>Vídeo Drive{mediaList.length > 1 ? ` (#${activeSlide + 1})` : ''}</span>
@@ -187,12 +195,17 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
                     <video
                       key={`card_video_${activeSlide}_${currentMedia.url}`}
                       src={currentMedia.url}
-                      controls
                       playsInline
                       muted
-                      onClick={e => e.stopPropagation()}
-                      className="w-full h-full object-cover"
+                      preload="metadata"
+                      className="w-full h-full object-cover pointer-events-none"
                     />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="bg-black/70 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-md border border-white/20">
+                        <Play className="w-3.5 h-3.5 fill-white text-white" />
+                        <span>Ver Vídeo</span>
+                      </div>
+                    </div>
                   </div>
                 );
               }
@@ -204,7 +217,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
                     key={`card_img_${activeSlide}_${currentMedia.url}`}
                     src={currentMedia.url}
                     alt={post.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
@@ -212,7 +225,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
                       if (fallback) fallback.style.display = 'flex';
                     }}
                   />
-                  <div className="card-img-fallback hidden w-full h-full flex-col items-center justify-center bg-slate-900 text-slate-400 p-4">
+                  <div className="card-img-fallback hidden w-full h-full flex-col items-center justify-center bg-slate-900 text-slate-400 p-4 pointer-events-none">
                     <ImageIcon className="w-10 h-10 mb-2 opacity-50 text-slate-400" />
                     <span className="text-xs font-semibold text-center text-slate-300">{post.title}</span>
                     <span className="text-[10px] text-slate-500">Lâmina {activeSlide + 1} de {mediaList.length}</span>
