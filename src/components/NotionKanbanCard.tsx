@@ -51,8 +51,11 @@ export const NotionKanbanCard: React.FC<NotionKanbanCardProps> = ({
 
   return (
     <div
-      onClick={() => onOpenDetail(post)}
-      className="bg-white rounded-xl border border-slate-200/90 hover:border-slate-400 hover:shadow-md transition-all p-3.5 flex flex-col space-y-2.5 cursor-pointer group shadow-2xs relative"
+      onClick={(e) => {
+        if ((e.target as HTMLElement)?.closest('button, video, a, input, textarea')) return;
+        onOpenDetail(post);
+      }}
+      className="bg-white rounded-xl border border-slate-200/90 hover:border-slate-400 hover:shadow-md transition-all p-3.5 flex flex-col space-y-2.5 cursor-pointer group shadow-2xs relative active:scale-[0.99]"
     >
       {/* 1. Nome da Demanda (Título no topo) */}
       <div className="flex items-start justify-between gap-2">

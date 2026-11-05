@@ -685,10 +685,13 @@ export const ClientPortalView: React.FC = () => {
               </button>
             </div>
 
-            {/* Helper notice */}
-            <p className="text-xs text-slate-500 italic">
-              💡 Toque em qualquer card para abrir a visualização detalhada com o <strong>dia</strong>, a <strong>hora</strong> e a <strong>legenda completa</strong>.
-            </p>
+            {/* Destaque do Aviso de Instrução (Mobile & Desktop) */}
+            <div className="bg-amber-50/80 border border-amber-200/60 rounded-xl p-3 text-amber-900 leading-snug flex items-start gap-2.5 shadow-2xs">
+              <span className="text-base sm:text-sm shrink-0 select-none mt-0.5">💡</span>
+              <p className="text-sm sm:text-xs font-medium text-amber-900 leading-relaxed">
+                Toque em qualquer card para abrir a visualização detalhada com o <strong className="font-bold text-amber-950">dia</strong>, a <strong className="font-bold text-amber-950">hora</strong> e a <strong className="font-bold text-amber-950">legenda completa</strong>.
+              </p>
+            </div>
 
             {/* Posts Cards Grid (Visual Preview only, caption shown on detail view click) */}
             <div>

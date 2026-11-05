@@ -61,7 +61,11 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
     addToast('success', 'Publicação Aprovada!', 'O status foi atualizado para Aprovado com sucesso.');
   };
 
-  const handleCardClick = () => {
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Prevent opening modal if an internal interactive button/control was clicked
+    if ((e.target as HTMLElement)?.closest('button, video, a, input, textarea')) {
+      return;
+    }
     if (onOpenDetail) {
       onOpenDetail(post, activeSlide);
     } else if (onPreviewPost) {
@@ -84,7 +88,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
   return (
     <div 
       onClick={handleCardClick}
-      className={`bg-white rounded-2xl border transition-all overflow-hidden flex flex-col group cursor-pointer shadow-xs hover:shadow-lg ${
+      className={`bg-white rounded-2xl border overflow-hidden flex flex-col group cursor-pointer shadow-xs hover:shadow-lg active:scale-[0.99] transition-transform select-none sm:select-auto ${
         post.status === 'pending_approval'
           ? 'border-amber-300 hover:border-amber-400'
           : post.status === 'changes_requested'
@@ -227,7 +231,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
                     setActiveSlide(prev => Math.max(0, prev - 1));
                   }}
                   disabled={activeSlide === 0}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/90 disabled:opacity-20 transition-opacity z-10"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/90 disabled:opacity-20 transition-all z-10 cursor-pointer active:scale-90"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -238,7 +242,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
                     setActiveSlide(prev => Math.min(mediaList.length - 1, prev + 1));
                   }}
                   disabled={activeSlide === mediaList.length - 1}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/90 disabled:opacity-20 transition-opacity z-10"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/90 disabled:opacity-20 transition-all z-10 cursor-pointer active:scale-90"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -254,7 +258,7 @@ export const PostApprovalCard: React.FC<PostApprovalCardProps> = ({
                   ))}
                 </div>
 
-                <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-mono bg-black/70 text-white backdrop-blur-xs flex items-center gap-1 z-10">
+                <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[10px] font-mono bg-black/70 text-white backdrop-blur-xs flex items-center gap-1 z-10 pointer-events-none select-none">
                   <Layers className="w-3 h-3" />
                   {activeSlide + 1}/{mediaList.length}
                 </span>
